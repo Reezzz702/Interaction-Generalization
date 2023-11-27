@@ -12,17 +12,12 @@
 
 from __future__ import print_function
 
-
 # ==============================================================================
 # -- find carla module ---------------------------------------------------------
 # ==============================================================================
-
-
 import glob
 import os
 import sys
-from multiprocessing import Process
-import json
 try:
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
         sys.version_info.major,
@@ -35,66 +30,31 @@ except IndexError:
 # ==============================================================================
 # -- imports -------------------------------------------------------------------
 # ==============================================================================
-
-from collections import deque
-
-from bird_eye_view.BirdViewProducer import BirdViewProducer, BirdView
-from bird_eye_view.Mask import PixelDimensions, Loc
-
-################
-
-
-from threading import Thread
-import carla
-
-from carla import ColorConverter as cc
-
 import argparse
-import collections
+import carla
+import cv2
 import datetime
-import time
+import json
 import logging
+import numpy as np
 import math
+import pygame
 import random
 import re
+import time
 import weakref
-from auto_random_actors import spawn_actor_nearby
-import cv2
-import pygame
-# from auto_light import *
-
-import datetime
 
 from agents.navigation.behavior_agent import BehaviorAgent  # pylint: disable=import-error
-from carla_gym.core.obs_manager.obs_manager_handler import ObsManagerHandler
-from carla_gym.core.task_actor.ego_vehicle.ego_vehicle_handler import EgoVehicleHandler
-from carla_gym.utils import config_utils
-from carla_gym.utils.traffic_light import TrafficLightHandler
+from bird_eye_view.Mask import Loc
+from carla import ColorConverter as cc
 from navigation.global_route_planner import GlobalRoutePlanner
-from multiprocessing import Process, Pool
-import copy
 from random_actors import spawn_actor_assigned
-
-import torch.multiprocessing as mp
-# import torch.threading as threading
-import threading
-import gym
-from omegaconf import DictConfig, OmegaConf
-from importlib import import_module
-import wandb
-
-
-try:
-    import numpy as np
-except ImportError:
-    raise RuntimeError('cannot import numpy, make sure numpy package is installed')
-
+from roach_agent import BEV_MAP
+from threading import Thread
 
 # ==============================================================================
 # -- Global functions ----------------------------------------------------------
 # ==============================================================================
-
-
 def find_weather_presets():
     rgx = re.compile('.+?(?:(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)')
     name = lambda x: ' '.join(m.group(0) for m in rgx.finditer(x))
@@ -110,8 +70,6 @@ def get_actor_display_name(actor, truncate=250):
 # ==============================================================================
 # -- World ---------------------------------------------------------------------
 # ==============================================================================
-
-
 class World(object):
     def __init__(self, carla_world, hud, args):
         self.world = carla_world
@@ -215,22 +173,12 @@ class World(object):
             spawn_points = self.map.get_spawn_points()
             spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
 
-
-
-
-
             self.player = self.world.try_spawn_actor(blueprint, spawn_point)
             self.show_vehicle_telemetry = False
             self.modify_vehicle_physics(self.player)
         # Set up the sensors.
         self.gnss_sensor = GnssSensor(self.player)
         self.imu_sensor = IMUSensor(self.player)
-        
-        
-        # self.camera_manager = CameraManager(self.player, self.hud, self._gamma)
-        # self.camera_manager.transform_index = cam_pos_index
-        # self.camera_manager.set_sensor(cam_index, notify=False)
-        
         
         actor_type = get_actor_display_name(self.player)
         self.hud.notification(actor_type)
@@ -264,13 +212,6 @@ class World(object):
             self.hud.notification('Loading map layer: %s' % selected)
             self.world.load_map_layer(selected)
 
-    # def toggle_radar(self):
-    #     if self.radar_sensor is None:
-    #         self.radar_sensor = RadarSensor(self.player)
-    #     elif self.radar_sensor.sensor is not None:
-    #         self.radar_sensor.sensor.destroy()
-    #         self.radar_sensor = None
-
     def modify_vehicle_physics(self, actor):
         #If actor is not a vehicle, we cannot use the physics control
         try:
@@ -284,26 +225,13 @@ class World(object):
         end = self.hud.tick(self, clock, self.camera_manager, frame, display)
         return end
     def render(self, display):
-        # self.camera_manager.render(display)
         self.hud.render(display)
 
     def destroy_sensors(self):
-        # self.camera_manager.sensor.destroy()
-        # self.camera_manager.sensor = None
-        # self.camera_manager.index = None
         pass
 
-    def destroy(self):
-        # if self.radar_sensor is not None:
-        #     self.toggle_radar()
-
-        
-        
+    def destroy(self):        
         sensors = [
-            # self.camera_manager.sensor_rgb_front,
-            # self.camera_manager.sensor_ss_front,
-
-
             self.gnss_sensor.sensor,
             self.imu_sensor.sensor]
         for sensor in sensors:
@@ -313,11 +241,10 @@ class World(object):
         if self.player is not None:
             self.player.destroy()
 
+
 # ==============================================================================
 # -- HUD -----------------------------------------------------------------------
 # ==============================================================================
-
-
 class HUD(object):
     def __init__(self, width, height, distance=25.0, town='Town05', v_id=1):
         self.dim = (width, height)
@@ -510,8 +437,6 @@ class HUD(object):
 # ==============================================================================
 # -- FadingText ----------------------------------------------------------------
 # ==============================================================================
-
-
 class FadingText(object):
     def __init__(self, font, dim, pos):
         self.font = font
@@ -539,8 +464,6 @@ class FadingText(object):
 # ==============================================================================
 # -- HelpText ------------------------------------------------------------------
 # ==============================================================================
-
-
 class HelpText(object):
     """Helper class to handle text output using pygame"""
 
@@ -571,8 +494,6 @@ class HelpText(object):
 # ==============================================================================
 # -- GnssSensor ----------------------------------------------------------------
 # ==============================================================================
-
-
 class GnssSensor(object):
     def __init__(self, parent_actor):
         self.sensor = None
@@ -599,8 +520,6 @@ class GnssSensor(object):
 # ==============================================================================
 # -- IMUSensor -----------------------------------------------------------------
 # ==============================================================================
-
-
 class IMUSensor(object):
     def __init__(self, parent_actor):
         self.sensor = None
@@ -638,8 +557,6 @@ class IMUSensor(object):
 # ==============================================================================
 # -- CameraManager -------------------------------------------------------------
 # ==============================================================================
-
-
 class CameraManager(object):
     def __init__(self, parent_actor, hud, gamma_correction, save_mode=True):
         # self.sensor_front = None
@@ -710,17 +627,6 @@ class CameraManager(object):
                 (carla.Transform(carla.Location(x=-1.3, y=0,
                  z=2.3), carla.Rotation(roll=0.0, pitch=0.0, yaw=120.0)), Attachment.Rigid)
             ]
-        else:
-            pass
-            # self._camera_transforms = [
-            #     (carla.Transform(carla.Location(x=-5.5, z=2.5),
-            #      carla.Rotation(pitch=8.0)), Attachment.SpringArm),
-            #     (carla.Transform(carla.Location(x=1.6, z=1.7)), Attachment.Rigid),
-            #     (carla.Transform(carla.Location(x=5.5, y=1.5, z=1.5)),
-            #      Attachment.SpringArm),
-            #     (carla.Transform(carla.Location(x=-8.0, z=6.0),
-            #      carla.Rotation(pitch=6.0)), Attachment.SpringArm),
-            #     (carla.Transform(carla.Location(x=-1, y=-bound_y, z=0.5)), Attachment.Rigid)]
 
         self.transform_index = 1
         self.sensors = [
@@ -743,28 +649,13 @@ class CameraManager(object):
         ]
         world = self._parent.get_world()
         bp_library = world.get_blueprint_library()
-
-        # self.bev_bp = bp_library.find('sensor.camera.rgb')
-        # self.bev_bp.set_attribute('image_size_x', str(300))
-        # self.bev_bp.set_attribute('image_size_y', str(300))
-        # self.bev_bp.set_attribute('fov', str(50.0))
-        # if self.bev_bp.has_attribute('gamma'):
-        #     self.bev_bp.set_attribute('gamma', str(gamma_correction))
-        
-        
-        # self.sensor_rgb_bp = bp_library.find('sensor.camera.rgb')
-        # self.sensor_rgb_bp.set_attribute('image_size_x', str(400))
-        # self.sensor_rgb_bp.set_attribute('image_size_y', str(300))
-        # self.sensor_rgb_bp.set_attribute('fov', str(100.0))
         
         self.sensor_rgb_bp = bp_library.find('sensor.camera.rgb')
         self.sensor_rgb_bp.set_attribute('image_size_x', str(512))
         self.sensor_rgb_bp.set_attribute('image_size_y', str(512))
         self.sensor_rgb_bp.set_attribute('fov', str(60.0))
         
-        # self.sensor_ss_bp = bp_library.find('sensor.camera.instance_segmentation')
         self.sensor_ss_bp = bp_library.find('sensor.camera.semantic_segmentation')
-        # 
         self.sensor_ss_bp.set_attribute('image_size_x', str(512))
         self.sensor_ss_bp.set_attribute('image_size_y', str(512))
         self.sensor_ss_bp.set_attribute('fov', str(60.0))
@@ -773,7 +664,6 @@ class CameraManager(object):
         self.sensor_depth_bp.set_attribute('image_size_x', str(1280))
         self.sensor_depth_bp.set_attribute('image_size_y', str(720))
         self.sensor_depth_bp.set_attribute('fov', str(60.0))
-        
 
         self.bev_seg_bp = bp_library.find('sensor.camera.instance_segmentation')
         self.bev_seg_bp.set_attribute('image_size_x', str(400))
@@ -788,7 +678,7 @@ class CameraManager(object):
         self.front_cam_bp.set_attribute('lens_circle_falloff', '0.0')
         self.front_cam_bp.set_attribute('chromatic_aberration_intensity', '3.0')
         self.front_cam_bp.set_attribute('chromatic_aberration_offset', '500')
-        # self.front_cam_bp.set_attribute('focal_distance', str(500))
+
         if self.front_cam_bp.has_attribute('gamma'):
             self.front_cam_bp.set_attribute('gamma', str(gamma_correction))
 
@@ -800,7 +690,7 @@ class CameraManager(object):
         self.front_cam_bp.set_attribute('lens_circle_falloff', '0.0')
         self.front_cam_bp.set_attribute('chromatic_aberration_intensity', '3.0')
         self.front_cam_bp.set_attribute('chromatic_aberration_offset', '500')
-        # self.front_seg_bp.set_attribute('focal_distance', str(500))
+
         if self.front_seg_bp.has_attribute('gamma'):
             self.front_seg_bp.set_attribute('gamma', str(gamma_correction))
 
@@ -812,21 +702,15 @@ class CameraManager(object):
         self.front_cam_bp.set_attribute('lens_circle_falloff', '0.0')
         self.front_cam_bp.set_attribute('chromatic_aberration_intensity', '3.0')
         self.front_cam_bp.set_attribute('chromatic_aberration_offset', '500')
-        # self.depth_bp.set_attribute('focal_distance', str(500))
+ 
         if self.depth_bp.has_attribute('gamma'):
             self.depth_bp.set_attribute('gamma', str(gamma_correction))
 
-        # self.flow_bp = bp_library.find('sensor.camera.optical_flow')
-        # self.flow_bp.set_attribute('image_size_x', str(1236))
-        # self.flow_bp.set_attribute('image_size_y', str(256))
-        # self.flow_bp.set_attribute('fov', str(120.0))
         self.front_cam_bp.set_attribute('lens_circle_multiplier', '0.0')
         self.front_cam_bp.set_attribute('lens_circle_falloff', '0.0')
         self.front_cam_bp.set_attribute('chromatic_aberration_intensity', '3.0')
         self.front_cam_bp.set_attribute('chromatic_aberration_offset', '500')
-        # self.flow_bp.set_attribute('focal_distance', str(500))
-        # if self.flow_bp.has_attribute('gamma'):
-        #     self.flow_bp.set_attribute('gamma', str(gamma_correction))
+
         for item in self.sensors:
             
             bp = bp_library.find(item[0])
@@ -887,10 +771,7 @@ class CameraManager(object):
             if self.save_mode:
                 self.sensor_rgb_front.listen(lambda image: CameraManager._parse_image(weak_self, image, 'rgb_front'))
                 self.sensor_ss_front.listen(lambda image: CameraManager._parse_image(weak_self, image, 'ss_front'))
-                
-                           
 
-                
         if notify:
             self.hud.notification(self.sensors[index][2])
         self.index = index
@@ -900,9 +781,6 @@ class CameraManager(object):
         
     def render(self, display):
         if self.surface is not None:
-            
-            # print(self.surface)
-            
             display.blit(self.surface, (0, 0))
 
     @staticmethod
@@ -936,10 +814,6 @@ class CameraManager(object):
 
         #if self.recording and image.frame % 1 == 0:
         if True:
-            # if view == 'front':
-            #     self.front_img = image
-
-            ## tf sensors  ( total 6 * 3 sensors )
             if view == 'rgb_front':
                 self.rgb_front = image
             elif view == 'rgb_left':
@@ -1002,82 +876,6 @@ def get_actor_blueprints(world, filter, generation):
     except:
         print("   Warning! Actor Generation is not valid. No actor will be spawned.")
         return []
-    
-def _get_traffic_light_waypoints(traffic_light, carla_map):
-    """
-    get area of a given traffic light
-    adapted from "carla-simulator/scenario_runner/srunner/scenariomanager/scenarioatomics/atomic_criteria.py"
-    """
-    base_transform = traffic_light.get_transform()
-    tv_loc = traffic_light.trigger_volume.location
-    tv_ext = traffic_light.trigger_volume.extent
-
-    # Discretize the trigger box into points
-    x_values = np.arange(-0.9 * tv_ext.x, 0.9 * tv_ext.x, 1.0)  # 0.9 to avoid crossing to adjacent lanes
-    area = []
-    for x in x_values:
-        point_location = base_transform.transform(tv_loc + carla.Location(x=x))
-        area.append(point_location)
-
-    # Get the waypoints of these points, removing duplicates
-    ini_wps = []
-    for pt in area:
-        wpx = carla_map.get_waypoint(pt)
-        # As x_values are arranged in order, only the last one has to be checked
-        if not ini_wps or ini_wps[-1].road_id != wpx.road_id or ini_wps[-1].lane_id != wpx.lane_id:
-            ini_wps.append(wpx)
-
-    # Leaderboard: Advance them until the intersection
-    stopline_wps = []
-    stopline_vertices = []
-    junction_wps = []
-    for wpx in ini_wps:
-        # Below: just use trigger volume, otherwise it's on the zebra lines.
-        # stopline_wps.append(wpx)
-        # vec_forward = wpx.transform.get_forward_vector()
-        # vec_right = carla.Vector3D(x=-vec_forward.y, y=vec_forward.x, z=0)
-
-        # loc_left = wpx.transform.location - 0.4 * wpx.lane_width * vec_right
-        # loc_right = wpx.transform.location + 0.4 * wpx.lane_width * vec_right
-        # stopline_vertices.append([loc_left, loc_right])
-
-        while not wpx.is_intersection:
-            next_wp = wpx.next(0.5)[0]
-            if next_wp and not next_wp.is_intersection:
-                wpx = next_wp
-            else:
-                break
-        junction_wps.append(wpx)
-
-        stopline_wps.append(wpx)
-        vec_forward = wpx.transform.get_forward_vector()
-        vec_right = carla.Vector3D(x=-vec_forward.y, y=vec_forward.x, z=0)
-
-        loc_left = wpx.transform.location - 0.4 * wpx.lane_width * vec_right
-        loc_right = wpx.transform.location + 0.4 * wpx.lane_width * vec_right
-        stopline_vertices.append([loc_left, loc_right])
-
-    # all paths at junction for this traffic light
-    junction_paths = []
-    path_wps = []
-    wp_queue = deque(junction_wps)
-    while len(wp_queue) > 0:
-        current_wp = wp_queue.pop()
-        path_wps.append(current_wp)
-        next_wps = current_wp.next(1.0)
-        for next_wp in next_wps:
-            if next_wp.is_junction:
-                wp_queue.append(next_wp)
-            else:
-                junction_paths.append(path_wps)
-                path_wps = []
-
-    return carla.Location(base_transform.transform(tv_loc)), stopline_wps, stopline_vertices, junction_paths
-
-    
-
-
-        
         
 # ==============================================================================
 # -- game_loop() ---------------------------------------------------------------
@@ -1093,7 +891,6 @@ def check_close(ev_loc, loc0, distance = 3):
 
     #     loc0 = self._global_route[i][0].transform.location
     #     loc1 = self._global_route[i+1][0].transform.location
-
     if ev_loc.distance(loc0) < distance:
         return True
 
