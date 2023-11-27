@@ -4,7 +4,7 @@ killall -9 -r CarlaUE4-Linux
 
 sleep 5
 # python manual_control_1.py --town Town05
-python test_scene_gen_roach_only.py --town Town05 --n 4 #A1 #Town10HD #B8
+python test_scene_gen_roach_only.py --town Town05 --mode auto #A1 #Town10HD #B8
 
 
 # A0(error), A1, A6
