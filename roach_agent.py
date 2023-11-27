@@ -6,7 +6,7 @@ import copy
 import carla
 import math
 import numpy as np
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 from importlib import import_module
 from collections import deque
 
@@ -127,14 +127,12 @@ def _get_traffic_light_waypoints(traffic_light, carla_map):
 
 
 class BEV_MAP():
-    def __init__(self, args) -> None:
+    def __init__(self, town) -> None:
         
-        self.args = args
-        
-        
+        self.town = town
         self.data = None
         self.birdview_producer = BirdViewProducer(
-                args.town, 
+                self.town, 
                 # PixelDimensions(width=512, height=512), 
                 PixelDimensions(width=304, height=304), 
                 pixels_per_meter=5)
