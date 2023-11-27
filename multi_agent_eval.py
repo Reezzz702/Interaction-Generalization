@@ -317,33 +317,6 @@ class World(object):
         if self.player is not None:
             self.player.destroy()
 
-
-# ==============================================================================
-# -- KeyboardControl -----------------------------------------------------------
-# ==============================================================================
-
-
-class KeyboardControl(object):
-    """Class that handles keyboard input."""
-    def __init__(self, world, start_in_autopilot):
-        #self._autopilot_enabled = start_in_autopilot
-        self._autopilot_enabled = False
-        if isinstance(world.player, carla.Vehicle):
-            self._control = carla.VehicleControl()
-            self._lights = carla.VehicleLightState.NONE
-            world.player.set_autopilot(self._autopilot_enabled)
-            world.player.set_light_state(self._lights)
-        elif isinstance(world.player, carla.Walker):
-            self._control = carla.WalkerControl()
-            self._autopilot_enabled = False
-            self._rotation = world.player.get_transform().rotation
-        else:
-            raise NotImplementedError("Actor type not supported")
-        self._steer_cache = 0.0
-        world.hud.notification("Press 'H' or '?' for help.", seconds=4.0)
-
-
-
 # ==============================================================================
 # -- HUD -----------------------------------------------------------------------
 # ==============================================================================
@@ -1671,26 +1644,15 @@ def game_loop(args):
 
     #try:
     if True:
-    
         client = carla.Client(args.host, args.port)
         client.set_timeout(10.0)
-
-        # display = pygame.display.set_mode(
-        #     (args.width, args.height),
-        #     pygame.HWSURFACE | pygame.DOUBLEBUF)
-        
         
         display = pygame.display.set_mode(
             (512, 900),
             pygame.HWSURFACE | pygame.DOUBLEBUF)
         display.fill((0,0,0))
         pygame.display.flip()
-
-
         stored_path = os.path.join('data_collection', args.town)
-        # if not os.path.exists(stored_path) :
-        #     os.makedirs(stored_path)
-
 
         hud = HUD(args.width, args.height, args.distance, args.town, stored_path)
         world = World(client.load_world(args.town), hud, args)
@@ -1700,10 +1662,6 @@ def game_loop(args):
         settings.synchronous_mode = True  # Enables synchronous mode
         world.world.apply_settings(settings)
 
-        controller = KeyboardControl(world, args.autopilot)
-        
-            
-        
         e2e_vehicles_list = []
         e2e_agent_dict = {}
         # spawn other agent 
@@ -1800,7 +1758,7 @@ def game_loop(args):
             except:
                 print("Spawn failed because of collision at spawn position")
       
-        ################################## implement traffic manager below #########################################            
+          
         auto_agent_list, all_auto_actors = spawn_actor_assigned(world.world, client, assigned_transforms[actor_numbers:])
         
         agent = BehaviorAgent(world.player, behavior='aggressive')
@@ -1841,13 +1799,8 @@ def game_loop(args):
         avg_FPS = 0
 
         while True:
-
             clock.tick_busy_loop(30)
             frame = world.world.tick()
-            # print("++++start++++")
-            # start_time = time.time()
-            if controller.parse_events(client, world, clock):
-                return
 
             view = pygame.surfarray.array3d(display)
             view = view.transpose([1, 0, 2]) 
@@ -1855,10 +1808,7 @@ def game_loop(args):
 
             world.tick(clock, frame, image, stored_path)
             avg_FPS = 0.98 * avg_FPS + 0.02 * clock.get_fps()
-            # print("Multithreading avg FPS:", avg_FPS)
-            # print(start_time - time.time())
-            # start_time = time.time()
-            # print("player_route")
+
             # regenerate a destination when the agent deviates from the current route
             if not check_close(world.player.get_location(), current_route[0][0].transform.location, 6):
                 destination = current_route[-1][0].transform.location
@@ -1870,7 +1820,6 @@ def game_loop(args):
                 if len(current_route) == 0:
                     new_destination = random.choice(spawn_points).location
                     current_route = planner.trace_route(world.player.get_location(), new_destination)
-
             
             # Generate new destination if the current one is close 
             if len(current_route) < 10:
@@ -1886,51 +1835,34 @@ def game_loop(args):
             for wp in route_trace:
                 wp = wp[0]
                 route_list.append(Loc(x=wp.transform.location.x, y=wp.transform.location.y))
-            # print(start_time - time.time())
 
             ###################player control#####################
-            # start_time = time.time()
-            # print("player_runstep")
+
             result = {}
             player_bev_map.run_step(result, frame, world.player.id, route_list)
             bev_map_rgb = result["bev_map_rgb"]
-            # policy_input = result["policy_input"]
-            # print(start_time - time.time())
-            # start_time = time.time()
-            # print("player_forward")            
-            # player_bev_map.policy_forward(result, [policy_input])
+
             control_elements_list = result["control_elements_list"]
-            # print("player_all", start_time - time.time())
-            # start_time = time.time()
-            # print("player_render")
 
             # for render
             surface = pygame.surfarray.make_surface(bev_map_rgb)
             surface = pygame.transform.flip(surface, True, False)
             surface = pygame.transform.rotate(surface, 90)
             display.blit(surface, (256, 0))
-            # print(start_time - time.time())
-            # start_time = time.time()
-            # print("player_control")
+
             control_elements = control_elements_list[0]
             control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
         
             world.player.apply_control( control )
             ###################player control#####################
-
-            # print(start_time - time.time())
-            # print("+++++++actors++++++++++")
             route_trace = {}
-            count = 1
             inputs = []
-            start_time_r = time.time()
 
             for num_of_vehicles, id in enumerate(e2e_vehicles_list):
                 if len(current_routes[id]) == 0:
                     # new_destination = random.choice(spawn_points).location
                     new_destination = assigned_destinations[num_of_vehicles]
                     print(f'{id}: {new_destination}')
-                    # print(new_destination)
                     current_routes[id] = planner.trace_route(e2e_agent_dict[id]['agent'].get_location(), new_destination)
                 
                 # regenerate a route when the agent deviates from the current route
@@ -1952,8 +1884,6 @@ def game_loop(args):
                     current_routes[id] = temp_route       
 
                 route_trace[id] = current_routes[id][0:60]
-                # bev_map_rgb, control = bev_map.run_step(frame, id, route_trace[id]) 
-                # e2e_agent_dict[id]["agent"].apply_control(control)
 
                 route_list = []
                 for wp in route_trace[id]:
@@ -1961,20 +1891,13 @@ def game_loop(args):
                     route_list.append(Loc(x=wp.transform.location.x, y=wp.transform.location.y))
                 # #original
 
-                # bev_map_rgb, control_elements = bev_map.run_step(frame, id, route_list) 
-                # control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
-                # e2e_agent_dict[id]["agent"].apply_control(control)
                 start_time = time.time()
                 inputs.append([start_time, id, route_list])
             
             traffic_manager = client.get_trafficmanager()
             for num_of_vehicles, id in enumerate(auto_agent_list):
-                # action = traffic_manager.get_all_actions(all_auto_actors[num_of_vehicles])
-                # print(f'{id}: {action}')
                 if len(auto_current_routes[id]) == 0:
-                    # new_destination = random.choice(spawn_points).location
                     new_destination = assigned_destinations[actor_numbers + num_of_vehicles]
-                    # print(f'{id}: {new_destination}')
                     auto_current_routes[id] = planner.trace_route(all_auto_actors[num_of_vehicles].get_location(), new_destination)
                     
                 # regenerate a route when the agent deviates from the current route
@@ -1990,6 +1913,7 @@ def game_loop(args):
                         print('empty route')
                         new_destination = random.choice(spawn_points).location
                         auto_current_routes[id] = planner.trace_route(all_auto_actors[num_of_vehicles].get_location(), new_destination)
+
                 # Generate new destination if the current one is close 
                 if len(auto_current_routes[id]) < 5:
                     new_destination = random.choice(spawn_points).location
@@ -1998,16 +1922,12 @@ def game_loop(args):
                     auto_current_routes[id] = temp_route
                 
                 route_trace[id] = auto_current_routes[id][0:60]
-                # bev_map_rgb, control = bev_map.run_step(frame, id, route_trace[id]) 
-                # e2e_agent_dict[id]["agent"].apply_control(control)
-
                 route_list = []
                 for wp in route_trace[id]:
                     route_list.append(wp[0].transform.location)
 
                 traffic_manager.set_path(all_auto_actors[num_of_vehicles], route_list)
                 
-            start_time_run = time.time()
             t_list = []
             results = [{} for i in range(actor_numbers)]
             for i in range(actor_numbers):
@@ -2019,22 +1939,6 @@ def game_loop(args):
                 t.start()
             for t in t_list:
                 t.join()
-
-            # print("finish both",start_time_run - time.time())
-            # print("finish runstep",start_time_run - time.time())
-            
-            
-            # start_time = time.time()
-            # t2_list = []
-            # for i in range(actor_numbers):
-            #     policy_input = [results[i]]
-            #     policy_input = policy_input + [[results[i]["policy_input"]]]
-            #     t = Thread(target=agent_bev_maps[vehicles_list[i]].policy_forward, args=tuple(policy_input))
-            #     t2_list.append(t)
-            #     t.start()
-            # for t in t2_list:
-            #     t.join()
-            # print("finish infer",start_time - time.time())
 
             for i in range((min(4, actor_numbers))):
                 bev_map_rgb = results[i]["bev_map_rgb"]
@@ -2049,93 +1953,15 @@ def game_loop(args):
                 control_elements = control_elements_list[0]
                 control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
                 e2e_agent_dict[e2e_vehicles_list[i]]["agent"].apply_control(control)
-                
 
-            # print("finish all",start_time_r - time.time())
-
-
-
-
-
-            # policy_inputs_list = []
-            # for bev_map_rgb, policy_input in image_inputs:
-
-            #     policy_inputs_list.append(policy_input)
-
-            #     # Visualize other agents
-            #     if count < 4:
-            #         surface = pygame.surfarray.make_surface(bev_map_rgb)
-            #         surface = pygame.transform.flip(surface, True, False)
-            #         surface = pygame.transform.rotate(surface, 90)
-            #         display.blit(surface, (256, 210*count))                
-            #     count += 1
-                
-            # # print("finish control and render",start_time - time.time())
-            # # start_time = time.time()
-            #     # print("finish one",start_time - time.time())
-            #     # start_time = time.time()
-            #     # agent_dict[id]["agent"].apply_control()
-            
-            # # print(policy_inputs_list)
-            # start_time = time.time()
-            # control_elements_list = bev_map.policy_forward(policy_inputs_list)
-            # print("finish all forward",start_time - time.time())
-            # start_time = time.time()
-            # i = 0
-            # for control_elements in control_elements_list:
-            #     control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
-            #     agent_dict[vehicles_list[i]]["agent"].apply_control(control)
-            #     i+=1
-            # print("finish all control",start_time - time.time())
-            # start_time = time.time()
             world.hud.render(display)
             
             pygame.display.flip()
-
-            # print("++++end++++")
-
-            
-            
-            
-            # world.render(display)
-            #print("location: ",world.player.get_location())
-            
-            # if agent.done():
-            #     agent.set_destination(random.choice(spawn_points).location)
-            # control = agent.run_step()
-            # control.manual_gear_shift = False
-            # world.player.apply_control(control)
-            
-    # except Exception as e:
-    #       print(e)
-    # finally:
-        settings = world.world.get_settings()
-        settings.synchronous_mode = False 
-        world.world.apply_settings(settings)
-
-        print('destroying vehicles')
-        
-        client.apply_batch([carla.command.DestroyActor(x) for x in vehicles_list])
-        
-
-
-
-        time.sleep(0.5)
-
-
-        if (world and world.recording_enabled):
-            client.stop_recorder()
-
-        if world is not None:
-            world.destroy()
-
-        pygame.quit()
 
 
 # ==============================================================================
 # -- main() --------------------------------------------------------------------
 # ==============================================================================
-
 
 def main():
     argparser = argparse.ArgumentParser(
