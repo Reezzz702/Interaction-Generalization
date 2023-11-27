@@ -284,8 +284,8 @@ class World(object):
         except Exception:
             pass
 
-    def tick(self, clock, frame, display, stored_path):
-        end = self.hud.tick(self, clock, self.camera_manager, frame, display, stored_path)
+    def tick(self, clock, frame, display):
+        end = self.hud.tick(self, clock, self.camera_manager, frame, display)
         return end
     def render(self, display):
         # self.camera_manager.render(display)
@@ -323,7 +323,7 @@ class World(object):
 
 
 class HUD(object):
-    def __init__(self, width, height, distance=25.0, town='Town05', stored_path='', v_id=1):
+    def __init__(self, width, height, distance=25.0, town='Town05', v_id=1):
         self.dim = (width, height)
         font = pygame.font.Font(pygame.font.get_default_font(), 20)
         font_name = 'courier' if os.name == 'nt' else 'mono'
@@ -342,7 +342,6 @@ class HUD(object):
         self._server_clock = pygame.time.Clock()
         self.recording = False
         self.recording_frame = 0
-        self.stored_path = stored_path
         self.v_id = int(v_id)
         self.ego_data = {}
 
@@ -1350,7 +1349,6 @@ class BEV_MAP():
         self.data = proccessed_data
 
     def run_step(self, result, frame, ego_id, route_list = None):
-        start_time = time.time()
         actor_dict =  copy.deepcopy(self.data)
 
         ego_loc = carla.Location(x=actor_dict[ego_id]["location"]["x"], y=actor_dict[ego_id]["location"]["y"])
@@ -1615,9 +1613,6 @@ def check_close(ev_loc, loc0, distance = 3):
     if ev_loc.distance(loc0) < distance:
         return True
 
-
-
-
 assigned_location_dict = {'E1': (-188.1, 18.5),
                     'E2': (-184.1, 18.5),
                     'E3': (-188.2, -15.0),
@@ -1637,6 +1632,7 @@ assigned_location_dict = {'E1': (-188.1, 18.5),
                     'center': (-190.0, 2.0)
                     }
 
+
 def game_loop(args):
     pygame.init()
     pygame.font.init()
@@ -1652,311 +1648,313 @@ def game_loop(args):
             pygame.HWSURFACE | pygame.DOUBLEBUF)
         display.fill((0,0,0))
         pygame.display.flip()
-        stored_path = os.path.join('data_collection', args.town)
 
-        hud = HUD(args.width, args.height, args.distance, args.town, stored_path)
-        world = World(client.load_world(args.town), hud, args)
+        f = open(args.eval_config)
+        eval_config = json.load(f)
+        for town, scenarios in eval_config.items():
+            hud = HUD(args.width, args.height, args.distance, town)
+            world = World(client.load_world(town), hud, args)
 
-        settings = world.world.get_settings()
-        settings.fixed_delta_seconds = 0.05
-        settings.synchronous_mode = True  # Enables synchronous mode
-        world.world.apply_settings(settings)
+            settings = world.world.get_settings()
+            settings.fixed_delta_seconds = 0.05
+            settings.synchronous_mode = True  # Enables synchronous mode
+            world.world.apply_settings(settings)
 
-        e2e_vehicles_list = []
-        e2e_agent_dict = {}
-        # spawn other agent 
-        map = world.world.get_map()
-        spawn_points = map.get_spawn_points()
-        
-        # waypoint_list = []
-        
-        # for waypoint in spawn_points:            
-        #     waypoint_list.append(waypoint)
-        # random.shuffle(waypoint_list)
-        # blueprints = world.world.get_blueprint_library().filter('vehicle.*')
+            e2e_vehicles_list = []
+            e2e_agent_dict = {}
+            # spawn other agent 
+            map = world.world.get_map()
+            spawn_points = map.get_spawn_points()
+            
+            # waypoint_list = []
+            
+            # for waypoint in spawn_points:            
+            #     waypoint_list.append(waypoint)
+            # random.shuffle(waypoint_list)
+            # blueprints = world.world.get_blueprint_library().filter('vehicle.*')
 
-        # actor_numbers = args.n
-        # actor_numbers = 4
+            # actor_numbers = args.n
+            # actor_numbers = 4
 
-        ############## set up agent spawnpoints and destinations by parsing the location.txt ###############
-        with open('locations.txt') as f:
-            assigned_spawns_dests = f.readlines()
-        for i in range(len(assigned_spawns_dests)):
-            assigned_spawns_dests[i] = assigned_spawns_dests[i].strip()
-            # print(assigned_spawns_dests[i])
+            ############## set up agent spawnpoints and destinations by parsing the location.txt ###############
+            with open('eval_config.txt') as f:
+                assigned_spawns_dests = f.readlines()
+            for i in range(len(assigned_spawns_dests)):
+                assigned_spawns_dests[i] = assigned_spawns_dests[i].strip()
+                # print(assigned_spawns_dests[i])
 
-        # remove empty string
-        assigned_spawns_dests[:] = [loc for loc in assigned_spawns_dests if loc]
+            # remove empty string
+            assigned_spawns_dests[:] = [loc for loc in assigned_spawns_dests if loc]
 
-        # print(assigned_spawns_dests)
+            # print(assigned_spawns_dests)
 
-        parsed_spawns_dests = []
+            parsed_spawns_dests = []
 
-        for loc in assigned_spawns_dests:
-            parsed_location = loc.split(", ")
-            parsed_spawns_dests.append(parsed_location)
-        # print(parsed_spawns_dests)
+            for loc in assigned_spawns_dests:
+                parsed_location = loc.split(", ")
+                parsed_spawns_dests.append(parsed_location)
+            # print(parsed_spawns_dests)
 
 
-        ####################  setup transforms and destinations according to the locations given #####################
-        assigned_transforms = []
-        assigned_destinations = []
-        for pair in parsed_spawns_dests:
-            spawn_trans = carla.Transform(carla.Location(assigned_location_dict[pair[0]][0], assigned_location_dict[pair[0]][1]))
-            spawn_trans.location.z += 2.0
-            spawn_trans.rotation.roll = 0.0
-            spawn_trans.rotation.pitch = 0.0
-            #####################  determine yaws by comparing the relative positions of spawn points and the center point ################
-            x_diff = assigned_location_dict['center'][0] - assigned_location_dict[pair[0]][0]
-            y_diff = assigned_location_dict['center'][1] - assigned_location_dict[pair[0]][1]
-            if x_diff < 0 and y_diff < 0:
-                spawn_trans.rotation.yaw = 270
-            elif x_diff > 0 and y_diff < 0:
-                spawn_trans.rotation.yaw = 0
-            elif x_diff < 0 and y_diff > 0:
-                spawn_trans.rotation.yaw = 180
+            ####################  setup transforms and destinations according to the locations given #####################
+            assigned_transforms = []
+            assigned_destinations = []
+            for pair in parsed_spawns_dests:
+                spawn_trans = carla.Transform(carla.Location(assigned_location_dict[pair[0]][0], assigned_location_dict[pair[0]][1]))
+                spawn_trans.location.z += 2.0
+                spawn_trans.rotation.roll = 0.0
+                spawn_trans.rotation.pitch = 0.0
+                #####################  determine yaws by comparing the relative positions of spawn points and the center point ################
+                x_diff = assigned_location_dict['center'][0] - assigned_location_dict[pair[0]][0]
+                y_diff = assigned_location_dict['center'][1] - assigned_location_dict[pair[0]][1]
+                if x_diff < 0 and y_diff < 0:
+                    spawn_trans.rotation.yaw = 270
+                elif x_diff > 0 and y_diff < 0:
+                    spawn_trans.rotation.yaw = 0
+                elif x_diff < 0 and y_diff > 0:
+                    spawn_trans.rotation.yaw = 180
+                else:
+                    spawn_trans.rotation.yaw = 90
+                ####################  set up the locations of destinations, the locations will later be used to calculate A* routes by planner ################
+                dest_trans = carla.Location(assigned_location_dict[pair[1]][0], assigned_location_dict[pair[1]][1])
+
+                # print(spawn_trans)
+                # print(dest_trans)
+
+                assigned_transforms.append(spawn_trans)
+                assigned_destinations.append(dest_trans)
+
+            ############# spawn e2e actors according to assigned transforms ###############
+            if args.mode != 'auto':
+                actor_numbers = len(assigned_transforms)
             else:
-                spawn_trans.rotation.yaw = 90
-            ####################  set up the locations of destinations, the locations will later be used to calculate A* routes by planner ################
-            dest_trans = carla.Location(assigned_location_dict[pair[1]][0], assigned_location_dict[pair[1]][1])
+                actor_numbers = 1
+                
+            for num_of_vehicles, transform in enumerate(assigned_transforms):
+                if num_of_vehicles == actor_numbers:
+                    break
+                blueprint = world.world.get_blueprint_library().find('vehicle.lincoln.mkz_2017')
 
-            # print(spawn_trans)
-            # print(dest_trans)
-
-            assigned_transforms.append(spawn_trans)
-            assigned_destinations.append(dest_trans)
-
-        ############# spawn e2e actors according to assigned transforms ###############
-        if args.mode != 'auto':
-            actor_numbers = len(assigned_transforms)
-        else:
-            actor_numbers = 1
+                if blueprint.has_attribute('color'):
+                    color = random.choice(blueprint.get_attribute('color').recommended_values)
+                    blueprint.set_attribute('color', color)
+                if blueprint.has_attribute('driver_id'):
+                    driver_id = random.choice(blueprint.get_attribute('driver_id').recommended_values)
+                    blueprint.set_attribute('driver_id', driver_id)
+                    
+                # blueprint, transform
+                
+                try:
             
-        for num_of_vehicles, transform in enumerate(assigned_transforms):
-            if num_of_vehicles == actor_numbers:
-                break
-            blueprint = world.world.get_blueprint_library().find('vehicle.lincoln.mkz_2017')
-
-            if blueprint.has_attribute('color'):
-                color = random.choice(blueprint.get_attribute('color').recommended_values)
-                blueprint.set_attribute('color', color)
-            if blueprint.has_attribute('driver_id'):
-                driver_id = random.choice(blueprint.get_attribute('driver_id').recommended_values)
-                blueprint.set_attribute('driver_id', driver_id)
-                
-            # blueprint, transform
+                    other_agent = client.get_world().spawn_actor(blueprint, transform)
+                    id = other_agent.id
+                    e2e_vehicles_list.append(id)
+                    
+                    e2e_agent_dict[id] = {}
+                    e2e_agent_dict[id]["agent"] = other_agent
+                    
+                except:
+                    print("Spawn failed because of collision at spawn position")
+        
             
-            try:
-        
-                other_agent = client.get_world().spawn_actor(blueprint, transform)
-                id = other_agent.id
-                e2e_vehicles_list.append(id)
-                
-                e2e_agent_dict[id] = {}
-                e2e_agent_dict[id]["agent"] = other_agent
-                
-            except:
-                print("Spawn failed because of collision at spawn position")
-      
-          
-        auto_agent_list, all_auto_actors = spawn_actor_assigned(world.world, client, assigned_transforms[actor_numbers:])
-        
-        agent = BehaviorAgent(world.player, behavior='aggressive')
-        destination = random.choice(spawn_points).location
-        agent.set_destination(destination)
-
-
-        planner = GlobalRoutePlanner(map, resolution=1.0)
-
-        clock = pygame.time.Clock()
-
-        player_bev_map = BEV_MAP(args)
-        processed_policy = player_bev_map.init_policy()
-        player_bev_map.init_vehicle_bbox(world.player.id)
-        destination = random.choice(spawn_points).location
-        current_route = planner.trace_route(world.player.get_location(), destination)
-
-        agent_bev_maps = {}
-        current_routes = {}
-        print("E2E agent:")
-        for id in e2e_vehicles_list:
-            print(id)
-            agent_bev_map = BEV_MAP(args)
-            agent_bev_map.init_vehicle_bbox(id)
-            agent_bev_map.set_policy(processed_policy)
+            auto_agent_list, all_auto_actors = spawn_actor_assigned(world.world, client, assigned_transforms[actor_numbers:])
+            
+            agent = BehaviorAgent(world.player, behavior='aggressive')
             destination = random.choice(spawn_points).location
+            agent.set_destination(destination)
 
-            agent_bev_maps[id] = agent_bev_map
-            current_routes[id] = []
 
-        auto_current_routes = {}
-        print('Auto agent:')
-        for id in auto_agent_list:
-            print(id)
+            planner = GlobalRoutePlanner(map, resolution=1.0)
+
+            clock = pygame.time.Clock()
+
+            player_bev_map = BEV_MAP(args)
+            processed_policy = player_bev_map.init_policy()
+            player_bev_map.init_vehicle_bbox(world.player.id)
             destination = random.choice(spawn_points).location
-            auto_current_routes[id] = []            
-            
-        avg_FPS = 0
+            current_route = planner.trace_route(world.player.get_location(), destination)
 
-        while True:
-            clock.tick_busy_loop(30)
-            frame = world.world.tick()
+            agent_bev_maps = {}
+            current_routes = {}
+            print("E2E agent:")
+            for id in e2e_vehicles_list:
+                print(id)
+                agent_bev_map = BEV_MAP(args)
+                agent_bev_map.init_vehicle_bbox(id)
+                agent_bev_map.set_policy(processed_policy)
+                destination = random.choice(spawn_points).location
 
-            view = pygame.surfarray.array3d(display)
-            view = view.transpose([1, 0, 2]) 
-            image = cv2.cvtColor(view, cv2.COLOR_RGB2BGR)        
+                agent_bev_maps[id] = agent_bev_map
+                current_routes[id] = []
 
-            world.tick(clock, frame, image, stored_path)
-            avg_FPS = 0.98 * avg_FPS + 0.02 * clock.get_fps()
-
-            # regenerate a destination when the agent deviates from the current route
-            if not check_close(world.player.get_location(), current_route[0][0].transform.location, 6):
-                destination = current_route[-1][0].transform.location
-                current_route = planner.trace_route(world.player.get_location(), destination)
-            
-            # Delete reached points from current route
-            while check_close(world.player.get_location(), current_route[0][0].transform.location):
-                current_route.pop(0)
-                if len(current_route) == 0:
-                    new_destination = random.choice(spawn_points).location
-                    current_route = planner.trace_route(world.player.get_location(), new_destination)
-            
-            # Generate new destination if the current one is close 
-            if len(current_route) < 10:
-                new_destination = random.choice(spawn_points).location
-                new_route = planner.trace_route(current_route[-1][0].transform.location, new_destination)
-                temp_route = current_route + new_route
-                current_route = temp_route
-
-            route_trace = current_route[0:80]    
-            # collect data for all agents
-            processed_data = player_bev_map.collect_actor_data(world)
-            route_list = []
-            for wp in route_trace:
-                wp = wp[0]
-                route_list.append(Loc(x=wp.transform.location.x, y=wp.transform.location.y))
-
-            ###################player control#####################
-
-            result = {}
-            player_bev_map.run_step(result, frame, world.player.id, route_list)
-            bev_map_rgb = result["bev_map_rgb"]
-
-            control_elements_list = result["control_elements_list"]
-
-            # for render
-            surface = pygame.surfarray.make_surface(bev_map_rgb)
-            surface = pygame.transform.flip(surface, True, False)
-            surface = pygame.transform.rotate(surface, 90)
-            display.blit(surface, (256, 0))
-
-            control_elements = control_elements_list[0]
-            control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
-        
-            world.player.apply_control( control )
-            ###################player control#####################
-            route_trace = {}
-            inputs = []
-
-            for num_of_vehicles, id in enumerate(e2e_vehicles_list):
-                if len(current_routes[id]) == 0:
-                    # new_destination = random.choice(spawn_points).location
-                    new_destination = assigned_destinations[num_of_vehicles]
-                    print(f'{id}: {new_destination}')
-                    current_routes[id] = planner.trace_route(e2e_agent_dict[id]['agent'].get_location(), new_destination)
+            auto_current_routes = {}
+            print('Auto agent:')
+            for id in auto_agent_list:
+                print(id)
+                destination = random.choice(spawn_points).location
+                auto_current_routes[id] = []            
                 
-                # regenerate a route when the agent deviates from the current route
-                if not check_close(e2e_agent_dict[id]["agent"].get_location(), current_routes[id][0][0].transform.location, 6):
-                    destination = current_routes[id][-1][0].transform.location
-                    current_routes[id] = planner.trace_route(e2e_agent_dict[id]["agent"].get_location(), destination)
+            avg_FPS = 0
+
+            while True:
+                clock.tick_busy_loop(30)
+                frame = world.world.tick()
+
+                view = pygame.surfarray.array3d(display)
+                view = view.transpose([1, 0, 2]) 
+                image = cv2.cvtColor(view, cv2.COLOR_RGB2BGR)        
+
+                world.tick(clock, frame, image)
+                avg_FPS = 0.98 * avg_FPS + 0.02 * clock.get_fps()
+
+                # regenerate a destination when the agent deviates from the current route
+                if not check_close(world.player.get_location(), current_route[0][0].transform.location, 6):
+                    destination = current_route[-1][0].transform.location
+                    current_route = planner.trace_route(world.player.get_location(), destination)
                 
                 # Delete reached points from current route
-                while check_close(e2e_agent_dict[id]["agent"].get_location(), current_routes[id][0][0].transform.location):
-                    current_routes[id].pop(0)
-                    if len(current_routes[id]) == 0:
+                while check_close(world.player.get_location(), current_route[0][0].transform.location):
+                    current_route.pop(0)
+                    if len(current_route) == 0:
                         new_destination = random.choice(spawn_points).location
-                        current_routes[id] = planner.trace_route(e2e_agent_dict[id]["agent"].get_location(), new_destination)
+                        current_route = planner.trace_route(world.player.get_location(), new_destination)
+                
                 # Generate new destination if the current one is close 
-                if len(current_routes[id]) < 10:
+                if len(current_route) < 10:
                     new_destination = random.choice(spawn_points).location
-                    new_route = planner.trace_route(current_routes[id][-1][0].transform.location, new_destination)
-                    temp_route = current_routes[id] + new_route
-                    current_routes[id] = temp_route       
+                    new_route = planner.trace_route(current_route[-1][0].transform.location, new_destination)
+                    temp_route = current_route + new_route
+                    current_route = temp_route
 
-                route_trace[id] = current_routes[id][0:60]
-
+                route_trace = current_route[0:80]    
+                # collect data for all agents
+                processed_data = player_bev_map.collect_actor_data(world)
                 route_list = []
-                for wp in route_trace[id]:
+                for wp in route_trace:
                     wp = wp[0]
                     route_list.append(Loc(x=wp.transform.location.x, y=wp.transform.location.y))
-                # #original
 
-                start_time = time.time()
-                inputs.append([start_time, id, route_list])
-            
-            traffic_manager = client.get_trafficmanager()
-            for num_of_vehicles, id in enumerate(auto_agent_list):
-                if len(auto_current_routes[id]) == 0:
-                    new_destination = assigned_destinations[actor_numbers + num_of_vehicles]
-                    auto_current_routes[id] = planner.trace_route(all_auto_actors[num_of_vehicles].get_location(), new_destination)
-                    
-                # regenerate a route when the agent deviates from the current route
-                if not check_close(all_auto_actors[num_of_vehicles].get_location(), auto_current_routes[id][0][0].transform.location, 6):
-                    print("deviates")
-                    destination = auto_current_routes[id][-1][0].transform.location
-                    auto_current_routes[id] = planner.trace_route(all_auto_actors[num_of_vehicles].get_location(), destination)
-                
-                # Delete reached points from current route
-                while check_close(all_auto_actors[num_of_vehicles].get_location(), auto_current_routes[id][0][0].transform.location):
-                    auto_current_routes[id].pop(0)
-                    if len(auto_current_routes[id]) == 0:
-                        print('empty route')
-                        new_destination = random.choice(spawn_points).location
-                        auto_current_routes[id] = planner.trace_route(all_auto_actors[num_of_vehicles].get_location(), new_destination)
+                ###################player control#####################
 
-                # Generate new destination if the current one is close 
-                if len(auto_current_routes[id]) < 5:
-                    new_destination = random.choice(spawn_points).location
-                    new_route = planner.trace_route(auto_current_routes[id][-1][0].transform.location, new_destination)
-                    temp_route = auto_current_routes[id] + new_route
-                    auto_current_routes[id] = temp_route
-                
-                route_trace[id] = auto_current_routes[id][0:60]
-                route_list = []
-                for wp in route_trace[id]:
-                    route_list.append(wp[0].transform.location)
+                result = {}
+                player_bev_map.run_step(result, frame, world.player.id, route_list)
+                bev_map_rgb = result["bev_map_rgb"]
 
-                traffic_manager.set_path(all_auto_actors[num_of_vehicles], route_list)
-                
-            t_list = []
-            results = [{} for i in range(actor_numbers)]
-            for i in range(actor_numbers):
-                input = [results[i]]
-                input = input + inputs[i]
-                agent_bev_maps[e2e_vehicles_list[i]].set_data(processed_data)
-                t = Thread(target=agent_bev_maps[e2e_vehicles_list[i]].run_step, args=tuple(input))
-                t_list.append(t)
-                t.start()
-            for t in t_list:
-                t.join()
+                control_elements_list = result["control_elements_list"]
 
-            for i in range((min(4, actor_numbers))):
-                bev_map_rgb = results[i]["bev_map_rgb"]
+                # for render
                 surface = pygame.surfarray.make_surface(bev_map_rgb)
                 surface = pygame.transform.flip(surface, True, False)
                 surface = pygame.transform.rotate(surface, 90)
-                display.blit(surface, (256, 210*i))  
+                display.blit(surface, (256, 0))
 
-            start_time = time.time()
-            for i in range(actor_numbers):
-                control_elements_list = results[i]["control_elements_list"] 
                 control_elements = control_elements_list[0]
                 control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
-                e2e_agent_dict[e2e_vehicles_list[i]]["agent"].apply_control(control)
-
-            world.hud.render(display)
             
-            pygame.display.flip()
+                world.player.apply_control( control )
+                ###################player control#####################
+                route_trace = {}
+                inputs = []
+
+                for num_of_vehicles, id in enumerate(e2e_vehicles_list):
+                    if len(current_routes[id]) == 0:
+                        # new_destination = random.choice(spawn_points).location
+                        new_destination = assigned_destinations[num_of_vehicles]
+                        print(f'{id}: {new_destination}')
+                        current_routes[id] = planner.trace_route(e2e_agent_dict[id]['agent'].get_location(), new_destination)
+                    
+                    # regenerate a route when the agent deviates from the current route
+                    if not check_close(e2e_agent_dict[id]["agent"].get_location(), current_routes[id][0][0].transform.location, 6):
+                        destination = current_routes[id][-1][0].transform.location
+                        current_routes[id] = planner.trace_route(e2e_agent_dict[id]["agent"].get_location(), destination)
+                    
+                    # Delete reached points from current route
+                    while check_close(e2e_agent_dict[id]["agent"].get_location(), current_routes[id][0][0].transform.location):
+                        current_routes[id].pop(0)
+                        if len(current_routes[id]) == 0:
+                            new_destination = random.choice(spawn_points).location
+                            current_routes[id] = planner.trace_route(e2e_agent_dict[id]["agent"].get_location(), new_destination)
+                    # Generate new destination if the current one is close 
+                    if len(current_routes[id]) < 10:
+                        new_destination = random.choice(spawn_points).location
+                        new_route = planner.trace_route(current_routes[id][-1][0].transform.location, new_destination)
+                        temp_route = current_routes[id] + new_route
+                        current_routes[id] = temp_route       
+
+                    route_trace[id] = current_routes[id][0:60]
+
+                    route_list = []
+                    for wp in route_trace[id]:
+                        wp = wp[0]
+                        route_list.append(Loc(x=wp.transform.location.x, y=wp.transform.location.y))
+                    # #original
+
+                    start_time = time.time()
+                    inputs.append([start_time, id, route_list])
+                
+                traffic_manager = client.get_trafficmanager()
+                for num_of_vehicles, id in enumerate(auto_agent_list):
+                    if len(auto_current_routes[id]) == 0:
+                        new_destination = assigned_destinations[actor_numbers + num_of_vehicles]
+                        auto_current_routes[id] = planner.trace_route(all_auto_actors[num_of_vehicles].get_location(), new_destination)
+                        
+                    # regenerate a route when the agent deviates from the current route
+                    if not check_close(all_auto_actors[num_of_vehicles].get_location(), auto_current_routes[id][0][0].transform.location, 6):
+                        print("deviates")
+                        destination = auto_current_routes[id][-1][0].transform.location
+                        auto_current_routes[id] = planner.trace_route(all_auto_actors[num_of_vehicles].get_location(), destination)
+                    
+                    # Delete reached points from current route
+                    while check_close(all_auto_actors[num_of_vehicles].get_location(), auto_current_routes[id][0][0].transform.location):
+                        auto_current_routes[id].pop(0)
+                        if len(auto_current_routes[id]) == 0:
+                            print('empty route')
+                            new_destination = random.choice(spawn_points).location
+                            auto_current_routes[id] = planner.trace_route(all_auto_actors[num_of_vehicles].get_location(), new_destination)
+
+                    # Generate new destination if the current one is close 
+                    if len(auto_current_routes[id]) < 5:
+                        new_destination = random.choice(spawn_points).location
+                        new_route = planner.trace_route(auto_current_routes[id][-1][0].transform.location, new_destination)
+                        temp_route = auto_current_routes[id] + new_route
+                        auto_current_routes[id] = temp_route
+                    
+                    route_trace[id] = auto_current_routes[id][0:60]
+                    route_list = []
+                    for wp in route_trace[id]:
+                        route_list.append(wp[0].transform.location)
+
+                    traffic_manager.set_path(all_auto_actors[num_of_vehicles], route_list)
+                    
+                t_list = []
+                results = [{} for i in range(actor_numbers)]
+                for i in range(actor_numbers):
+                    input = [results[i]]
+                    input = input + inputs[i]
+                    agent_bev_maps[e2e_vehicles_list[i]].set_data(processed_data)
+                    t = Thread(target=agent_bev_maps[e2e_vehicles_list[i]].run_step, args=tuple(input))
+                    t_list.append(t)
+                    t.start()
+                for t in t_list:
+                    t.join()
+
+                for i in range((min(4, actor_numbers))):
+                    bev_map_rgb = results[i]["bev_map_rgb"]
+                    surface = pygame.surfarray.make_surface(bev_map_rgb)
+                    surface = pygame.transform.flip(surface, True, False)
+                    surface = pygame.transform.rotate(surface, 90)
+                    display.blit(surface, (256, 210*i))  
+
+                start_time = time.time()
+                for i in range(actor_numbers):
+                    control_elements_list = results[i]["control_elements_list"] 
+                    control_elements = control_elements_list[0]
+                    control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
+                    e2e_agent_dict[e2e_vehicles_list[i]]["agent"].apply_control(control)
+
+                world.hud.render(display)
+                
+                pygame.display.flip()
 
 
 # ==============================================================================
@@ -2007,25 +2005,15 @@ def main():
         type=float,
         help='distance to intersection for toggling camera)')
     argparser.add_argument(
-        '--town',
-        default='Town05',
-        type=str,
-        help='map)')
-    argparser.add_argument(
         '--gamma',
         default=2.2,
         type=float,
         help='Gamma correction of the camera (default: 2.2)')
-    # argparser.add_argument(
-    #     '--n',
-    #     default='4',
-    #     type=int,
-    #     help='number of Roach agents')
     argparser.add_argument(
-        '--mode',
-        default='auto',
+        '--eval_config',
+        default='eval_config.json',
         type=str,
-        help='Selecet behavior mode of other agent')
+        help='path to evaluation config')
     args = argparser.parse_args()
 
     args.width, args.height = [int(x) for x in args.res.split('x')]
