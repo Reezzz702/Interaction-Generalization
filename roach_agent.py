@@ -392,12 +392,12 @@ class BEV_MAP():
     def set_data(self, proccessed_data):
         self.data = proccessed_data
 
-    def run_step(self, result, frame, ego_id, route_list = None):
+    def run_step(self, route_list, result):
         actor_dict =  copy.deepcopy(self.data)
 
-        ego_loc = carla.Location(x=actor_dict[ego_id]["location"]["x"], y=actor_dict[ego_id]["location"]["y"])
-        ego_pos = Loc(x=actor_dict[ego_id]["location"]["x"], y=actor_dict[ego_id]["location"]["y"])
-        ego_yaw = actor_dict[ego_id]["rotation"]["yaw"]
+        ego_loc = carla.Location(x=actor_dict[result['id']]["location"]["x"], y=actor_dict[result['id']]["location"]["y"])
+        ego_pos = Loc(x=actor_dict[result['id']]["location"]["x"], y=actor_dict[result['id']]["location"]["y"])
+        ego_yaw = actor_dict[result['id']]["rotation"]["yaw"]
 
 
         obstacle_bbox_list = []
@@ -554,21 +554,6 @@ class BEV_MAP():
                                                        obstacle_bbox_list,
                                                        route_list)
     
-        # print(birdview.shape)
-
-        camera_pos = Loc(x=assigned_location_dict['center'][0], y=assigned_location_dict['center'][1]+10)
-        camera_yaw = -90
-        camera: BirdView = self.birdview_producer.produce(camera_pos, camera_yaw,
-                                                       agent_bbox_list, 
-                                                       self.vehicle_bbox_1_16[ego_id],
-                                                       self.pedestrain_bbox_1_16[ego_id],
-                                                       self.R_bbox_1_16[ego_id],
-                                                       self.G_bbox_1_16[ego_id],
-                                                       self.Y_bbox_1_16[ego_id],
-                                                       obstacle_bbox_list,
-                                                       route_list)        
-        # topdown = BirdViewProducer.as_rgb(birdview)
-        topdown = BirdViewProducer.as_rgb(camera)
 
         # input BEV representation
         roach_obs, new_array =  BirdViewProducer.as_roach_input(birdview)
@@ -599,16 +584,10 @@ class BEV_MAP():
         policy_input['birdview'] = np.expand_dims(roach_obs, 0)
 
        
-        # return roach_obs
-        result["bev_map_rgb"] = topdown[0:192, 56:248]
-        # result["bev_map_rgb"] = new_array
-        result["policy_input"] = policy_input
-        # return topdown[0:192, 56:248], policy_input
-        # return new_array, policy_input
-        self.policy_forward(result, [policy_input])
-        # print("finish one both", ego_id ,start_time - time.time(), frame - time.time())
+        self.policy_forward([policy_input], result)
+
         
-    def policy_forward(self, result, policy_inputs_list):    
+    def policy_forward(self, policy_inputs_list, result=None):    
         control_elements_list = []
         for policy_input in policy_inputs_list:
             actions, values, log_probs, mu, sigma, features = self.policy.forward(
@@ -632,6 +611,5 @@ class BEV_MAP():
                 control_elements['steer'] = steer
                 control_elements['brake'] = brake
                 control_elements_list.append(control_elements)
-        result["control_elements_list"] = control_elements_list
-        # return control_elements_list
-        # return contorl 
+
+        output['control'] = control_elements_list

@@ -5,12 +5,12 @@
         {
           "agent": ["ego", "roach", "roach"],
           "start": ["E1", "A1", "B1"],
-          "destination": ["A3", "C3", "E3"]
+          "dest": ["A3", "C3", "E3"]
         },
         {
           "agent": ["ego", "roach", "roach"],
           "start": ["E2", "A1", "A2"],
-          "destination": ["E4", "C3", "A4"]
+          "dest": ["E4", "C3", "A4"]
         }
     ]
   }
