@@ -255,8 +255,8 @@ class HUD(object):
         mono = default_font if default_font in fonts else fonts[0]
         mono = pygame.font.match_font(mono)
         self._font_mono = pygame.font.Font(mono, 12 if os.name == 'nt' else 14)
-        self._notifications = FadingText(font, (width, 40), (0, height - 40))
-        self.help = HelpText(pygame.font.Font(mono, 16), width, height)
+        # self._notifications = FadingText(font, (width, 40), (0, height - 40))
+        # self.help = HelpText(pygame.font.Font(mono, 16), width, height)
         self.server_fps = 0
         self.frame = 0
         self.simulation_time = 0
@@ -324,8 +324,8 @@ class HUD(object):
 
     
                                            
-    def tick(self, world, clock, camera, frame, display, root_path):
-        self._notifications.tick(world, clock)
+    def tick(self, world, clock, camera, frame, display):
+        # self._notifications.tick(world, clock)
         if not self._show_info:
             return
         t = world.player.get_transform()
@@ -390,10 +390,12 @@ class HUD(object):
         self._show_info = not self._show_info
 
     def notification(self, text, seconds=2.0):
-        self._notifications.set_text(text, seconds=seconds)
-
+        pass
+        # self._notifications.set_text(text, seconds=seconds)
+        
     def error(self, text):
-        self._notifications.set_text('Error: %s' % text, (255, 0, 0))
+        pass
+        # self._notifications.set_text('Error: %s' % text, (255, 0, 0))
 
     def render(self, display):
         if self._show_info:
@@ -430,8 +432,8 @@ class HUD(object):
                     surface = self._font_mono.render(item, True, (255, 255, 255))
                     display.blit(surface, (8, v_offset))
                 v_offset += 18
-        self._notifications.render(display)
-        self.help.render(display)
+        # self._notifications.render(display)
+        # self.help.render(display)
 
 
 # ==============================================================================
@@ -890,7 +892,7 @@ def check_close(ev_loc, loc0, distance = 3):
     if ev_loc.distance(loc0) < distance:
         return True
 
-def init_multi_agent(world, client, agent_list, start_list, dest_list):
+def init_multi_agent(world, client, agent_list, start_list, dest_list, roach_policy=None):
     map = world.get_map()
     planner = GlobalRoutePlanner(map, resolution=1.0)
 
@@ -928,9 +930,9 @@ def init_multi_agent(world, client, agent_list, start_list, dest_list):
             blueprint.set_attribute('driver_id', driver_id)
 
         try:
-            interactive_agent = world.spawn_actor(blueprint, spawn_trans)
-            agent_dict['id'] = interactive_agent.id
-            agent_dict["agent"] = interactive_agent
+            carla_agent = world.spawn_actor(blueprint, spawn_trans)
+            agent_dict['id'] = carla_agent.id
+            agent_dict["agent"] = carla_agent
         except:
             print("Spawn failed because of collision at spawn position")
 
@@ -939,19 +941,19 @@ def init_multi_agent(world, client, agent_list, start_list, dest_list):
             agent_dict['name'] = 'e2e'
         if agent == 'roach':            
                 # Initialize roach agent
-                roach_agent = BEV_MAP(map.name)
-                roach_agent.init_vehicle_bbox(id)
-                processed_policy = roach_agent.init_policy()
-                roach_agent.set_policy(processed_policy)
+                roach_agent = BEV_MAP(map.name.split('/')[-1])
+                roach_agent.init_vehicle_bbox(carla_agent.id)
+                roach_agent.set_policy(roach_policy)
                 agent_dict['model'] = roach_agent
                 agent_dict['name'] = agent
                 # set route
-                route = planner.trace_route(roach_agent.get_location(), dest_trans)
+                route = planner.trace_route(carla_agent.get_location(), dest_trans)
                 agent_dict['route'] = route            
         if agent == "auto":
             # TODO: implement TF++ autopilot
             pass
         
+        agent_dict['done'] = 0
         interactive_agent_list.append(agent_dict)                
 
     
@@ -999,13 +1001,16 @@ def game_loop(args):
 
         f = open(args.eval_config)
         eval_config = json.load(f)
-        for town, scenarios in eval_config.items():
+        scenario_index = 0
+        for town, scenarios in eval_config["available_scenarios"].items():
             for scene in scenarios:
+                scenario_index += 1
+                logging.info(f'Running scenario {scenario_index} at {town}')
                 hud = HUD(args.width, args.height, args.distance, town)
                 world = World(client.load_world(town), hud, args)
                 avg_FPS = 0
                 clock = pygame.time.Clock()
-                actor_number = len(scene['agent'])
+                
 
                 settings = world.world.get_settings()
                 settings.fixed_delta_seconds = 0.05
@@ -1015,16 +1020,18 @@ def game_loop(args):
                 # spawn other agent 
                 map = world.world.get_map()
                 spawn_points = map.get_spawn_points()
-                planner = GlobalRoutePlanner(map, resolution=1.0)
-                                
+                planner = GlobalRoutePlanner(map, resolution=1.0)                
 
-                player_bev_map = BEV_MAP(args)
-                player_bev_map.init_vehicle_bbox(world.player.id)
-                destination = random.choice(spawn_points).location
-                current_route = planner.trace_route(world.player.get_location(), destination)
-        
-                ego_agent_list, interactive_agent_list = init_multi_agent(world.world, client, scene['agent'], scene['start'], scene['dest'])
-
+                # Initialize a global roach for all roach agent to avoid generating multipile HD maps
+                global_roach = None
+                global_roach_policy = None
+                if 'roach' in scene['agent']:
+                    global_roach = BEV_MAP(town)
+                    global_roach.init_vehicle_bbox(world.player.id)
+                    global_roach_policy = global_roach.init_policy()
+                    
+                ego_agent_list, interactive_agent_list = init_multi_agent(world.world, client, scene['agent'], scene['start'], scene['dest'], global_roach_policy)
+                
                 while True:
                     clock.tick_busy_loop(30)
                     frame = world.world.tick()
@@ -1036,54 +1043,11 @@ def game_loop(args):
                     world.tick(clock, frame, image)
                     avg_FPS = 0.98 * avg_FPS + 0.02 * clock.get_fps()
 
-                    # regenerate a destination when the agent deviates from the current route
-                    if not check_close(world.player.get_location(), current_route[0][0].transform.location, 6):
-                        destination = current_route[-1][0].transform.location
-                        current_route = planner.trace_route(world.player.get_location(), destination)
+                    # collect data for all roach if needed
+                    if global_roach:
+                        processed_data = global_roach.collect_actor_data(world)
                     
-                    # Delete reached points from current route
-                    while check_close(world.player.get_location(), current_route[0][0].transform.location):
-                        current_route.pop(0)
-                        if len(current_route) == 0:
-                            new_destination = random.choice(spawn_points).location
-                            current_route = planner.trace_route(world.player.get_location(), new_destination)
-                    
-                    # Generate new destination if the current one is close 
-                    if len(current_route) < 10:
-                        new_destination = random.choice(spawn_points).location
-                        new_route = planner.trace_route(current_route[-1][0].transform.location, new_destination)
-                        temp_route = current_route + new_route
-                        current_route = temp_route
-
-                    route_trace = current_route[0:80]    
-                    # collect data for all agents
-                    processed_data = player_bev_map.collect_actor_data(world)
-                    route_list = []
-                    for wp in route_trace:
-                        wp = wp[0]
-                        route_list.append(Loc(x=wp.transform.location.x, y=wp.transform.location.y))
-
                     ###################player control#####################
-
-                    result = {}
-                    player_bev_map.run_step(world.player.id, route_list, result)
-                    bev_map_rgb = result["bev_map_rgb"]
-
-                    control_elements_list = result["control_elements_list"]
-
-                    # for render
-                    surface = pygame.surfarray.make_surface(bev_map_rgb)
-                    surface = pygame.transform.flip(surface, True, False)
-                    surface = pygame.transform.rotate(surface, 90)
-                    display.blit(surface, (256, 0))
-
-                    control_elements = control_elements_list[0]
-                    control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
-                
-                    world.player.apply_control(control)
-                    ###################player control#####################
-                    route_trace = {}
-                    inputs = []
 
                     for agent_dict in interactive_agent_list:                        
                         # regenerate a route when the agent deviates from the current route
@@ -1096,11 +1060,13 @@ def game_loop(args):
                             agent_dict['route'].pop(0)
                             if len(agent_dict['route']) == 0:
                                 # TODO: Set flag to record if all agent reach goal
+                                agent_dict['done'] = 1
                                 new_destination = random.choice(spawn_points).location
                                 agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), new_destination)
                         # Generate new destination if the current one is close 
                         if len(agent_dict['route']) < 10:
                             # TODO: Set flag to record if all agent reach goal
+                            agent_dict['done'] = 1
                             new_destination = random.choice(spawn_points).location
                             new_route = planner.trace_route(agent_dict['route'][-1][0].transform.location, new_destination)
                             temp_route = agent_dict['route'] + new_route
@@ -1117,12 +1083,13 @@ def game_loop(args):
                         while check_close(agent_dict['agent'].get_location(), agent_dict['route'][0][0].transform.location):
                             agent_dict['route'].pop(0)
                             if len(agent_dict['route']) == 0:
-                                print('empty route')
+                                agent_dict['done'] = 1
                                 new_destination = random.choice(spawn_points).location
                                 agent_dict['route'] = planner.trace_route(agent_dict['agent'].get_location(), new_destination)
 
                         # Generate new destination if the current one is close 
                         if len(agent_dict['route']) < 10:
+                            agent_dict['done'] = 1
                             new_destination = random.choice(spawn_points).location
                             new_route = planner.trace_route(agent_dict['route'][-1][0].transform.location, new_destination)
                             temp_route = agent_dict['route'] + new_route
@@ -1140,14 +1107,14 @@ def game_loop(args):
                         if agent_dict['name'] == 'roach':
                             route_list = [wp[0].transform.location for wp in agent_dict['route'][0:60]]
                             start_time = time.time()
-                            inputs = [agent_dict['id'], route_list, agent_dict]
+                            inputs = [route_list, agent_dict]
                             agent_dict['model'].set_data(processed_data)
                         
                         if agent_dict['name'] == 'e2e':
                             # TODO: Prepare sensor data -> tick()
                             pass
 
-                        t = Thread(target=agent_dict['model'].run_step, args=tuple(input))
+                        t = Thread(target=agent_dict['model'].run_step, args=tuple(inputs))
                         t_list.append(t)
                         t.start()
                     
@@ -1155,7 +1122,7 @@ def game_loop(args):
                         t.join()
 
                     start_time = time.time()
-                    for agent in all_agent_list:
+                    for agent_dict in all_agent_list:
                         control_elements_list = agent_dict["control"] 
                         control_elements = control_elements_list[0]
                         control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
@@ -1164,12 +1131,28 @@ def game_loop(args):
                     world.hud.render(display)
                     
                     pygame.display.flip()
+                    
+                    scene_done = 1
+                    for agent_dict in all_agent_list:
+                        scene_done = scene_done and agent_dict['done']
+                    if scene_done:
+                        break
+
+                # Destroy all agent, world and HUD
+                for agent_dict in all_agent_list:
+                    agent_dict['agent'].destroy()
+                del all_agent_list
+                del ego_agent_list
+                del interactive_agent_list                
+                world.destroy()
+                del world
+                del hud
+                
 
 
 # ==============================================================================
 # -- main() --------------------------------------------------------------------
 # ==============================================================================
-
 def main():
     argparser = argparse.ArgumentParser(
         description='CARLA Manual Control Client')
@@ -1238,18 +1221,14 @@ def main():
 
     logging.info('listening to server %s:%s', args.host, args.port)
 
-    print(__doc__)
+    # print(__doc__)
 
     try:
-
         game_loop(args)
 
     except KeyboardInterrupt:
         print('\nCancelled by user. Bye!')
 
-
 if __name__ == '__main__':
 
     main()
-
-

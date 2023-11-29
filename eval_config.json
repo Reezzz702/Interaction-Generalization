@@ -1,14 +1,14 @@
 {
   "available_scenarios": 
   {
-    "Town5": [
+    "Town05": [
         {
-          "agent": ["ego", "roach", "roach"],
+          "agent": ["roach", "roach", "roach"],
           "start": ["E1", "A1", "B1"],
           "dest": ["A3", "C3", "E3"]
         },
         {
-          "agent": ["ego", "roach", "roach"],
+          "agent": ["roach", "roach", "roach"],
           "start": ["E2", "A1", "A2"],
           "dest": ["E4", "C3", "A4"]
         }
