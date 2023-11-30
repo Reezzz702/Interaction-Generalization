@@ -179,7 +179,8 @@ class World(object):
         # Set up the sensors.
         self.gnss_sensor = GnssSensor(self.player)
         self.imu_sensor = IMUSensor(self.player)
-        
+        # self.camera_manager = CameraManager(self.player, self.hud, self._gamma)
+        # self.camera_manager.set_sensor(notify=False)
         actor_type = get_actor_display_name(self.player)
         self.hud.notification(actor_type)
 
@@ -232,6 +233,7 @@ class World(object):
 
     def destroy(self):        
         sensors = [
+            # self.camera_manager.sensor_rgb_bev,
             self.gnss_sensor.sensor,
             self.imu_sensor.sensor]
         for sensor in sensors:
@@ -369,9 +371,6 @@ class HUD(object):
             self._info_text += [
                 ('Speed:', c.speed, 0.0, 5.556),
                 ('Jump:', c.jump)]
-        self._info_text += [
-            '',
-            'Number of vehicles: % 8d' % len(vehicles)]
 
         moving = False
         acc = world.player.get_acceleration().length()
@@ -561,7 +560,7 @@ class IMUSensor(object):
 class CameraManager(object):
     def __init__(self, parent_actor, hud, gamma_correction, save_mode=True):
         # self.sensor_front = None
-        self.sensor_rgb_front = None
+        self.sensor_rgb_bev = None
 
         self.surface = None
         self._parent = parent_actor
@@ -573,81 +572,11 @@ class CameraManager(object):
         self.ss_front = None
 
 
-
-        bound_x = 0.5 + self._parent.bounding_box.extent.x
-        bound_y = 0.5 + self._parent.bounding_box.extent.y
-        bound_z = 0.5 + self._parent.bounding_box.extent.z
         Attachment = carla.AttachmentType
 
-        if not self._parent.type_id.startswith("walker.pedestrian"):
-            self._camera_transforms = [
-                # front view
-                (carla.Transform(carla.Location(x=+0.8*bound_x,
-                 y=+0.0*bound_y, z=1.3*bound_z)), Attachment.Rigid),
-                # front-left view
-                (carla.Transform(carla.Location(x=+0.8*bound_x, y=+0.0*bound_y,
-                 z=1.3*bound_z), carla.Rotation(yaw=-55)), Attachment.Rigid),
-                # front-right view
-                (carla.Transform(carla.Location(x=+0.8*bound_x, y=+0.0*bound_y,
-                 z=1.3*bound_z), carla.Rotation(yaw=55)), Attachment.Rigid),
-                # back view
-                (carla.Transform(carla.Location(x=-0.8*bound_x, y=+0.0*bound_y,
-                 z=1.3*bound_z), carla.Rotation(yaw=180)), Attachment.Rigid),
-                # back-left view
-                (carla.Transform(carla.Location(x=-0.8*bound_x, y=+0.0*bound_y,
-                 z=1.3*bound_z), carla.Rotation(yaw=235)), Attachment.Rigid),
-                # back-right view
-                (carla.Transform(carla.Location(x=-0.8*bound_x, y=+0.0*bound_y,
-                 z=1.3*bound_z), carla.Rotation(yaw=-235)), Attachment.Rigid),
-                # top view
-                (carla.Transform(carla.Location(x=-0.8*bound_x, y=+0.0*bound_y,
-                 z=23*bound_z), carla.Rotation(pitch=18.0)), Attachment.SpringArm),
-                # LBC top view
-                # (carla.Transform(carla.Location(x=0, y=0,
-                #  z=25.0), carla.Rotation(pitch=-90.0)), Attachment.SpringArm),
-                (carla.Transform(carla.Location(x=0, y=0,
-                 z=20.0), carla.Rotation(pitch=-90.0)), Attachment.SpringArm),
-                
-                # sensor config for transfuser camera settings 
-                #  front view 8
-                (carla.Transform(carla.Location(x=1.3, y=0,
-                 z=2.3), carla.Rotation(roll=0.0, pitch=0.0, yaw=0.0)), Attachment.Rigid),
-                # left view  9 
-                (carla.Transform(carla.Location(x=1.3, y=0,
-                 z=2.3), carla.Rotation(roll=0.0, pitch=0.0, yaw=-60.0)), Attachment.Rigid),
-                # right view 10
-                (carla.Transform(carla.Location(x=1.3, y=0,
-                 z=2.3), carla.Rotation(roll=0.0, pitch=0.0, yaw=60.0)), Attachment.Rigid),
-                # rear 11 
-                (carla.Transform(carla.Location(x=-1.3, y=0,
-                 z=2.3), carla.Rotation(roll=0.0, pitch=0.0, yaw=180.0)), Attachment.Rigid),
-                # rear left 12 
-                (carla.Transform(carla.Location(x=-1.3, y=0,
-                 z=2.3), carla.Rotation(roll=0.0, pitch=0.0, yaw=-120.0)), Attachment.Rigid),
-                # rear right 13
-                (carla.Transform(carla.Location(x=-1.3, y=0,
-                 z=2.3), carla.Rotation(roll=0.0, pitch=0.0, yaw=120.0)), Attachment.Rigid)
-            ]
-
-        self.transform_index = 1
-        self.sensors = [
-            ['sensor.camera.rgb', cc.Raw, 'Camera RGB', {}],
-            ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)', {}],
-            ['sensor.camera.depth', cc.Depth, 'Camera Depth (Gray Scale)', {}],
-            ['sensor.camera.depth', cc.LogarithmicDepth,
-                'Camera Depth (Logarithmic Gray Scale)', {}],
-            ['sensor.camera.semantic_segmentation', cc.Raw,
-                'Camera Semantic Segmentation (Raw)', {}],
-            ['sensor.camera.semantic_segmentation', cc.CityScapesPalette,
-                'Camera Semantic Segmentation (CityScapes Palette)', {}],
-            ['sensor.lidar.ray_cast', None,
-                'Lidar (Ray-Cast)', {'range': '85', 'rotation_frequency': '25'}],
-            ['sensor.camera.dvs', cc.Raw, 'Dynamic Vision Sensor', {}],
-            ['sensor.camera.optical_flow', None, 'Optical Flow', {}],
-            ['sensor.other.lane_invasion', None, 'Lane lane_invasion', {}],
-            ['sensor.camera.instance_segmentation', cc.CityScapesPalette,
-                'Camera Instance Segmentation (CityScapes Palette)', {}],
-        ]
+        self.camera_transform = (carla.Transform(carla.Location(x=assigned_location_dict['center'][0], y=assigned_location_dict['center'][1]+10, z=20), carla.Rotation(pitch=-90, yaw=-90)), Attachment.SpringArmGhost)
+        self.sensor = ['sensor.camera.rgb', cc.Raw, 'Camera RGB']
+        
         world = self._parent.get_world()
         bp_library = world.get_blueprint_library()
         
@@ -656,155 +585,61 @@ class CameraManager(object):
         self.sensor_rgb_bp.set_attribute('image_size_y', str(512))
         self.sensor_rgb_bp.set_attribute('fov', str(60.0))
         
-        self.sensor_ss_bp = bp_library.find('sensor.camera.semantic_segmentation')
-        self.sensor_ss_bp.set_attribute('image_size_x', str(512))
-        self.sensor_ss_bp.set_attribute('image_size_y', str(512))
-        self.sensor_ss_bp.set_attribute('fov', str(60.0))
-        
-        self.sensor_depth_bp = bp_library.find('sensor.camera.depth')
-        self.sensor_depth_bp.set_attribute('image_size_x', str(1280))
-        self.sensor_depth_bp.set_attribute('image_size_y', str(720))
-        self.sensor_depth_bp.set_attribute('fov', str(60.0))
+       
+        bp = bp_library.find(self.sensor[0])
+        if self.sensor[0].startswith('sensor.camera'):
+            bp.set_attribute('image_size_x', str(hud.dim[0]))
+            bp.set_attribute('image_size_y', str(hud.dim[1]))
+            if bp.has_attribute('gamma'):
+                bp.set_attribute('gamma', str(gamma_correction))
+            # for attr_name, attr_value in self.sensor[3].items():
+            #     bp.set_attribute(attr_name, attr_value)
 
-        self.bev_seg_bp = bp_library.find('sensor.camera.instance_segmentation')
-        self.bev_seg_bp.set_attribute('image_size_x', str(400))
-        self.bev_seg_bp.set_attribute('image_size_y', str(400))
-        self.bev_seg_bp.set_attribute('fov', str(50.0))
 
-        self.front_cam_bp = bp_library.find('sensor.camera.rgb')
-        self.front_cam_bp.set_attribute('image_size_x', str(768))
-        self.front_cam_bp.set_attribute('image_size_y', str(256))
-        self.front_cam_bp.set_attribute('fov', str(120.0))
-        self.front_cam_bp.set_attribute('lens_circle_multiplier', '0.0')
-        self.front_cam_bp.set_attribute('lens_circle_falloff', '0.0')
-        self.front_cam_bp.set_attribute('chromatic_aberration_intensity', '3.0')
-        self.front_cam_bp.set_attribute('chromatic_aberration_offset', '500')
-
-        if self.front_cam_bp.has_attribute('gamma'):
-            self.front_cam_bp.set_attribute('gamma', str(gamma_correction))
-
-        self.front_seg_bp = bp_library.find('sensor.camera.instance_segmentation')
-        self.front_seg_bp.set_attribute('image_size_x', str(768))
-        self.front_seg_bp.set_attribute('image_size_y', str(256))
-        self.front_seg_bp.set_attribute('fov', str(120.0))
-        self.front_cam_bp.set_attribute('lens_circle_multiplier', '0.0')
-        self.front_cam_bp.set_attribute('lens_circle_falloff', '0.0')
-        self.front_cam_bp.set_attribute('chromatic_aberration_intensity', '3.0')
-        self.front_cam_bp.set_attribute('chromatic_aberration_offset', '500')
-
-        if self.front_seg_bp.has_attribute('gamma'):
-            self.front_seg_bp.set_attribute('gamma', str(gamma_correction))
-
-        self.depth_bp = bp_library.find('sensor.camera.depth')
-        self.depth_bp.set_attribute('image_size_x', str(768))
-        self.depth_bp.set_attribute('image_size_y', str(256))
-        self.depth_bp.set_attribute('fov', str(120.0))
-        self.front_cam_bp.set_attribute('lens_circle_multiplier', '0.0')
-        self.front_cam_bp.set_attribute('lens_circle_falloff', '0.0')
-        self.front_cam_bp.set_attribute('chromatic_aberration_intensity', '3.0')
-        self.front_cam_bp.set_attribute('chromatic_aberration_offset', '500')
- 
-        if self.depth_bp.has_attribute('gamma'):
-            self.depth_bp.set_attribute('gamma', str(gamma_correction))
-
-        self.front_cam_bp.set_attribute('lens_circle_multiplier', '0.0')
-        self.front_cam_bp.set_attribute('lens_circle_falloff', '0.0')
-        self.front_cam_bp.set_attribute('chromatic_aberration_intensity', '3.0')
-        self.front_cam_bp.set_attribute('chromatic_aberration_offset', '500')
-
-        for item in self.sensors:
-            
-            bp = bp_library.find(item[0])
-            if item[0].startswith('sensor.camera'):
-                bp.set_attribute('image_size_x', str(hud.dim[0]))
-                bp.set_attribute('image_size_y', str(hud.dim[1]))
-                if bp.has_attribute('gamma'):
-                    bp.set_attribute('gamma', str(gamma_correction))
-                for attr_name, attr_value in item[3].items():
-                    bp.set_attribute(attr_name, attr_value)
-            elif item[0].startswith('sensor.lidar'):
-                self.lidar_range = 50
-
-                for attr_name, attr_value in item[3].items():
-                    bp.set_attribute(attr_name, attr_value)
-                    if attr_name == 'range':
-                        self.lidar_range = float(attr_value)
-
-            item.append(bp)
+        self.sensor.append(bp)
         self.index = None
 
     def toggle_camera(self):
-        self.transform_index = (self.transform_index +
-                                1) % len(self._camera_transforms)
-        self.set_sensor(self.index, notify=False, force_respawn=True)
+        self.set_sensor(notify=False, force_respawn=True)
 
-    def set_sensor(self, index, notify=True, force_respawn=False):
-        index = index % len(self.sensors)
-        needs_respawn = True if self.index is None else \
-            (force_respawn or (self.sensors[index]
-             [2] != self.sensors[self.index][2]))
-        if needs_respawn:
-            if self.sensor_rgb_front is not None:
-                self.sensor_rgb_front.destroy()
-                self.surface = None
+    def set_sensor(self, notify=True, force_respawn=False):
+        if self.sensor_rgb_bev is not None:
+            self.sensor_rgb_bev.destroy()
+            self.surface = None
 
-            # rgb sensor
-            if self.save_mode:
-                ## setup sensors [ tf sensors  ( total 6 * 3 sensors ) ] 
-                # rgb 
-                self.sensor_rgb_front = self._parent.get_world().spawn_actor(
-                    self.sensor_rgb_bp,
-                    self._camera_transforms[8][0],
-                    attach_to=self._parent,
-                    attachment_type=self._camera_transforms[0][1])
-                
-                # ss
-                self.sensor_ss_front = self._parent.get_world().spawn_actor(
-                    self.sensor_ss_bp,
-                    self._camera_transforms[7][0],
-                    attach_to=self._parent,
-                    attachment_type=self._camera_transforms[0][1])
+        # rgb sensor
+            ## setup sensors [ tf sensors  ( total 6 * 3 sensors ) ] 
+            # rgb 
+        self.sensor_rgb_bev = self._parent.get_world().spawn_actor(
+            self.sensor_rgb_bp,
+            self.camera_transform[0],
+            attach_to=self._parent,
+            attachment_type=self.camera_transform[1])
+        
 
-            # We need to pass the lambda a weak reference to self to avoid
-            # circular reference.
-            weak_self = weakref.ref(self)
+        # We need to pass the lambda a weak reference to self to avoid
+        # circular reference.
+        weak_self = weakref.ref(self)
 
-            if self.save_mode:
-                self.sensor_rgb_front.listen(lambda image: CameraManager._parse_image(weak_self, image, 'rgb_front'))
-                self.sensor_ss_front.listen(lambda image: CameraManager._parse_image(weak_self, image, 'ss_front'))
+        self.sensor_rgb_bev.listen(lambda image: CameraManager._parse_image(weak_self, image, 'rgb_bev'))
 
-        if notify:
-            self.hud.notification(self.sensors[index][2])
-        self.index = index
+        # if notify:
+        #     self.hud.notification(self.sensors[index][2])
+        # self.index = index
 
-    def next_sensor(self):
-        self.set_sensor(self.index + 1)
         
     def render(self, display):
         if self.surface is not None:
             display.blit(self.surface, (0, 0))
 
     @staticmethod
-    def _parse_image(weak_self, image, view='top'):
+    def _parse_image(weak_self, image, view='rgb_bev'):
         self = weak_self()
         if not self:
             return
-        if self.sensors[self.index][0].startswith('sensor.lidar'):
-            points = np.frombuffer(image.raw_data, dtype=np.dtype('f4'))
-            points = np.reshape(points, (int(points.shape[0] / 4), 4))
-            lidar_data = np.array(points[:, :2])
-            lidar_data *= min(self.hud.dim) / (2.0 * self.lidar_range)
-            lidar_data += (0.5 * self.hud.dim[0], 0.5 * self.hud.dim[1])
-            lidar_data = np.fabs(lidar_data)  # pylint: disable=E1111
-            lidar_data = lidar_data.astype(np.int32)
-            lidar_data = np.reshape(lidar_data, (-1, 2))
-            lidar_img_size = (self.hud.dim[0], self.hud.dim[1], 3)
-            lidar_img = np.zeros((lidar_img_size), dtype=np.uint8)
-            lidar_img[tuple(lidar_data.T)] = (255, 255, 255)
-            self.surface = pygame.surfarray.make_surface(lidar_img)
-
-        elif view == 'rgb_front':
-            image.convert(self.sensors[self.index][1])
+        
+        elif view == 'rgb_bev':
+            image.convert(self.sensor[1])
             array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
             array = np.reshape(array, (512, 512, 4))
             array = array[:, :, :3]
@@ -812,46 +647,6 @@ class CameraManager(object):
 
             # render the view shown in monitor
             self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
-
-        #if self.recording and image.frame % 1 == 0:
-        if True:
-            if view == 'rgb_front':
-                self.rgb_front = image
-            elif view == 'rgb_left':
-                self.rgb_left = image
-            elif view == 'rgb_right':
-                self.rgb_right = image
-                
-            elif view == 'rgb_rear':
-                self.rgb_rear = image
-            elif view == 'rgb_rear_left':
-                self.rgb_rear_left = image                
-            elif view == 'rgb_rear_right':
-                self.rgb_rear_right = image
-            elif view == 'depth_front':
-                self.depth_front = image
-            elif view == 'depth_left':
-                self.depth_left = image
-            elif view == 'depth_right':
-                self.depth_right = image
-            elif view == 'depth_rear':
-                self.depth_rear = image
-            elif view == 'depth_rear_left':
-                self.depth_rear_left = image
-            elif view == 'depth_rear_right':
-                self.depth_rear_right = image
-            elif view == 'ss_front':
-                self.ss_front = image
-            elif view == 'ss_left':
-                self.ss_left = image
-            elif view == 'ss_right':
-                self.ss_right = image
-            elif view == 'ss_rear':
-                self.ss_rear = image
-            elif view == 'ss_rear_left':
-                self.ss_rear_left = image
-            elif view == 'ss_rear_right':
-                self.ss_rear_right = image
             
             
 def get_actor_blueprints(world, filter, generation):
@@ -1048,7 +843,6 @@ def game_loop(args):
                         processed_data = global_roach.collect_actor_data(world)
                     
                     ###################player control#####################
-
                     for agent_dict in interactive_agent_list:                        
                         # regenerate a route when the agent deviates from the current route
                         if not check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location, 6):
