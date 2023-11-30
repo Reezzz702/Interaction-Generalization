@@ -137,7 +137,6 @@ class World(object):
         # Get a random blueprint.
         blueprint = random.choice(self.world.get_blueprint_library().filter(self._actor_filter))
         blueprint = self.world.get_blueprint_library().find('vehicle.lincoln.mkz_2017')
-        print(blueprint)
         blueprint.set_attribute('role_name', self.actor_role_name)
         if blueprint.has_attribute('color'):
             color = random.choice(blueprint.get_attribute('color').recommended_values)
@@ -172,15 +171,17 @@ class World(object):
                 sys.exit(1)
             spawn_points = self.map.get_spawn_points()
             spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
-
+            
+            # spawn_point = carla.Transform()
+            
             self.player = self.world.try_spawn_actor(blueprint, spawn_point)
             self.show_vehicle_telemetry = False
             self.modify_vehicle_physics(self.player)
         # Set up the sensors.
         self.gnss_sensor = GnssSensor(self.player)
         self.imu_sensor = IMUSensor(self.player)
-        # self.camera_manager = CameraManager(self.player, self.hud, self._gamma)
-        # self.camera_manager.set_sensor(notify=False)
+        self.camera_manager = CameraManager(self.player, self.hud, self._gamma)
+        self.camera_manager.set_sensor(notify=False)
         actor_type = get_actor_display_name(self.player)
         self.hud.notification(actor_type)
 
@@ -226,14 +227,15 @@ class World(object):
         end = self.hud.tick(self, clock, self.camera_manager, frame, display)
         return end
     def render(self, display):
-        self.hud.render(display)
+        self.camera_manager.render(display)
+        # self.hud.render(display)
 
     def destroy_sensors(self):
         pass
 
     def destroy(self):        
         sensors = [
-            # self.camera_manager.sensor_rgb_bev,
+            self.camera_manager.sensor_rgb_bev,
             self.gnss_sensor.sensor,
             self.imu_sensor.sensor]
         for sensor in sensors:
@@ -242,6 +244,7 @@ class World(object):
                 sensor.destroy()
         if self.player is not None:
             self.player.destroy()
+        
 
 
 # ==============================================================================
@@ -502,7 +505,7 @@ class GnssSensor(object):
         self.lon = 0.0
         world = self._parent.get_world()
         bp = world.get_blueprint_library().find('sensor.other.gnss')
-        self.sensor = world.spawn_actor(bp, carla.Transform(carla.Location(x=1.0, z=2.8)), attach_to=self._parent)
+        self.sensor = world.spawn_actor(bp, carla.Transform(carla.Location(x=1.0, z=2.8)))
         # We need to pass the lambda a weak reference to self to avoid circular
         # reference.
         weak_self = weakref.ref(self)
@@ -574,7 +577,7 @@ class CameraManager(object):
 
         Attachment = carla.AttachmentType
 
-        self.camera_transform = (carla.Transform(carla.Location(x=assigned_location_dict['center'][0], y=assigned_location_dict['center'][1]+10, z=20), carla.Rotation(pitch=-90, yaw=-90)), Attachment.SpringArmGhost)
+        self.camera_transform = (carla.Transform(carla.Location(x=assigned_location_dict['center'][0], y=assigned_location_dict['center'][1], z=50), carla.Rotation(pitch=-90, yaw=-90)), Attachment.SpringArmGhost)
         self.sensor = ['sensor.camera.rgb', cc.Raw, 'Camera RGB']
         
         world = self._parent.get_world()
@@ -612,9 +615,8 @@ class CameraManager(object):
             # rgb 
         self.sensor_rgb_bev = self._parent.get_world().spawn_actor(
             self.sensor_rgb_bp,
-            self.camera_transform[0],
-            attach_to=self._parent,
-            attachment_type=self.camera_transform[1])
+            self.camera_transform[0]
+        )
         
 
         # We need to pass the lambda a weak reference to self to avoid
@@ -779,168 +781,168 @@ assigned_location_dict = {'E1': (-188.1, 18.5),
 # -- game_loop() ---------------------------------------------------------------
 # ==============================================================================
 def game_loop(args):
-    pygame.init()
-    pygame.font.init()
-    world = None
+    f = open(args.eval_config)
+    eval_config = json.load(f)
+    scenario_index = 0
+    for town, scenarios in eval_config["available_scenarios"].items():
+        for scene in scenarios:
+            #try:
+            client = carla.Client(args.host, args.port)
+            client.set_timeout(10.0)
 
-    #try:
-    if True:
-        client = carla.Client(args.host, args.port)
-        client.set_timeout(10.0)
-        
-        display = pygame.display.set_mode(
-            (512, 900),
-            pygame.HWSURFACE | pygame.DOUBLEBUF)
-        display.fill((0,0,0))
-        pygame.display.flip()
+            # Initialize pygame
+            pygame.init()
+            pygame.font.init()
+            display = pygame.display.set_mode(
+                (512, 512),
+                pygame.HWSURFACE | pygame.DOUBLEBUF)
+            display.fill((0,0,0))
+            pygame.display.flip()
+            
+            scenario_index += 1
+            logging.info(f'Running scenario {scenario_index} at {town}')
+            hud = HUD(args.width, args.height, args.distance, town)
+            world = World(client.load_world(town), hud, args)
+            avg_FPS = 0
+            clock = pygame.time.Clock()
 
-        f = open(args.eval_config)
-        eval_config = json.load(f)
-        scenario_index = 0
-        for town, scenarios in eval_config["available_scenarios"].items():
-            for scene in scenarios:
-                scenario_index += 1
-                logging.info(f'Running scenario {scenario_index} at {town}')
-                hud = HUD(args.width, args.height, args.distance, town)
-                world = World(client.load_world(town), hud, args)
-                avg_FPS = 0
-                clock = pygame.time.Clock()
+            settings = world.world.get_settings()
+            settings.fixed_delta_seconds = 0.05
+            settings.synchronous_mode = True  # Enables synchronous mode
+            world.world.apply_settings(settings)
+
+            # spawn other agent 
+            map = world.world.get_map()
+            spawn_points = map.get_spawn_points()
+            planner = GlobalRoutePlanner(map, resolution=1.0)                
+
+            # Initialize a global roach for all roach agent to avoid generating multipile HD maps
+            global_roach = None
+            global_roach_policy = None
+            if 'roach' in scene['agent']:
+                global_roach = BEV_MAP(town)
+                global_roach.init_vehicle_bbox(world.player.id)
+                global_roach_policy = global_roach.init_policy()
                 
+            ego_agent_list, interactive_agent_list = init_multi_agent(world.world, client, scene['agent'], scene['start'], scene['dest'], global_roach_policy)
 
-                settings = world.world.get_settings()
-                settings.fixed_delta_seconds = 0.05
-                settings.synchronous_mode = True  # Enables synchronous mode
-                world.world.apply_settings(settings)
+            while True:
+                clock.tick_busy_loop(30)
+                frame = world.world.tick()
 
-                # spawn other agent 
-                map = world.world.get_map()
-                spawn_points = map.get_spawn_points()
-                planner = GlobalRoutePlanner(map, resolution=1.0)                
+                view = pygame.surfarray.array3d(display)
+                view = view.transpose([1, 0, 2]) 
+                image = cv2.cvtColor(view, cv2.COLOR_RGB2BGR)        
 
-                # Initialize a global roach for all roach agent to avoid generating multipile HD maps
-                global_roach = None
-                global_roach_policy = None
-                if 'roach' in scene['agent']:
-                    global_roach = BEV_MAP(town)
-                    global_roach.init_vehicle_bbox(world.player.id)
-                    global_roach_policy = global_roach.init_policy()
-                    
-                ego_agent_list, interactive_agent_list = init_multi_agent(world.world, client, scene['agent'], scene['start'], scene['dest'], global_roach_policy)
+                world.tick(clock, frame, image)
+                avg_FPS = 0.98 * avg_FPS + 0.02 * clock.get_fps()
+
+                # collect data for all roach if needed
+                if global_roach:
+                    processed_data = global_roach.collect_actor_data(world)
                 
-                while True:
-                    clock.tick_busy_loop(30)
-                    frame = world.world.tick()
-
-                    view = pygame.surfarray.array3d(display)
-                    view = view.transpose([1, 0, 2]) 
-                    image = cv2.cvtColor(view, cv2.COLOR_RGB2BGR)        
-
-                    world.tick(clock, frame, image)
-                    avg_FPS = 0.98 * avg_FPS + 0.02 * clock.get_fps()
-
-                    # collect data for all roach if needed
-                    if global_roach:
-                        processed_data = global_roach.collect_actor_data(world)
+                ###################player control#####################
+                for agent_dict in interactive_agent_list:                        
+                    # regenerate a route when the agent deviates from the current route
+                    if not check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location, 6):
+                        destination = agent_dict['route'][-1][0].transform.location
+                        agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), destination)
                     
-                    ###################player control#####################
-                    for agent_dict in interactive_agent_list:                        
-                        # regenerate a route when the agent deviates from the current route
-                        if not check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location, 6):
-                            destination = agent_dict['route'][-1][0].transform.location
-                            agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), destination)
-                        
-                        # Delete reached points from current route
-                        while check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location):
-                            agent_dict['route'].pop(0)
-                            if len(agent_dict['route']) == 0:
-                                # TODO: Set flag to record if all agent reach goal
-                                agent_dict['done'] = 1
-                                new_destination = random.choice(spawn_points).location
-                                agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), new_destination)
-                        # Generate new destination if the current one is close 
-                        if len(agent_dict['route']) < 10:
+                    # Delete reached points from current route
+                    while check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location):
+                        agent_dict['route'].pop(0)
+                        if len(agent_dict['route']) == 0:
                             # TODO: Set flag to record if all agent reach goal
                             agent_dict['done'] = 1
                             new_destination = random.choice(spawn_points).location
-                            new_route = planner.trace_route(agent_dict['route'][-1][0].transform.location, new_destination)
-                            temp_route = agent_dict['route'] + new_route
-                            agent_dict['route'] = temp_route       
+                            agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), new_destination)
+                    # Generate new destination if the current one is close 
+                    if len(agent_dict['route']) < 10:
+                        # TODO: Set flag to record if all agent reach goal
+                        agent_dict['done'] = 1
+                        new_destination = random.choice(spawn_points).location
+                        new_route = planner.trace_route(agent_dict['route'][-1][0].transform.location, new_destination)
+                        temp_route = agent_dict['route'] + new_route
+                        agent_dict['route'] = temp_route       
+                
+                for agent_dict in ego_agent_list:                            
+                    # regenerate a route when the agent deviates from the current route
+                    if not check_close(agent_dict['agent'].get_location(), agent_dict['route'][0][0].transform.location, 6):
+                        print("deviates")
+                        destination = agent_dict['route'][-1][0].transform.location
+                        agent_dict['route'] = planner.trace_route(agent_dict['agent'].get_location(), destination)
                     
-                    for agent_dict in ego_agent_list:                            
-                        # regenerate a route when the agent deviates from the current route
-                        if not check_close(agent_dict['agent'].get_location(), agent_dict['route'][0][0].transform.location, 6):
-                            print("deviates")
-                            destination = agent_dict['route'][-1][0].transform.location
-                            agent_dict['route'] = planner.trace_route(agent_dict['agent'].get_location(), destination)
-                        
-                        # Delete reached points from current route
-                        while check_close(agent_dict['agent'].get_location(), agent_dict['route'][0][0].transform.location):
-                            agent_dict['route'].pop(0)
-                            if len(agent_dict['route']) == 0:
-                                agent_dict['done'] = 1
-                                new_destination = random.choice(spawn_points).location
-                                agent_dict['route'] = planner.trace_route(agent_dict['agent'].get_location(), new_destination)
-
-                        # Generate new destination if the current one is close 
-                        if len(agent_dict['route']) < 10:
+                    # Delete reached points from current route
+                    while check_close(agent_dict['agent'].get_location(), agent_dict['route'][0][0].transform.location):
+                        agent_dict['route'].pop(0)
+                        if len(agent_dict['route']) == 0:
                             agent_dict['done'] = 1
                             new_destination = random.choice(spawn_points).location
-                            new_route = planner.trace_route(agent_dict['route'][-1][0].transform.location, new_destination)
-                            temp_route = agent_dict['route'] + new_route
-                            agent_dict['route'] = temp_route
+                            agent_dict['route'] = planner.trace_route(agent_dict['agent'].get_location(), new_destination)
 
-                    #############################################################
-                    # TODO: Need to prepare input for e2e driving model -> tick()
-                    #                                                           #
-                    #                                                           #
-                    #                                                           #
-                    #############################################################
-                    t_list = []
-                    all_agent_list = interactive_agent_list + ego_agent_list
-                    for agent_dict in all_agent_list:
-                        if agent_dict['name'] == 'roach':
-                            route_list = [wp[0].transform.location for wp in agent_dict['route'][0:60]]
-                            start_time = time.time()
-                            inputs = [route_list, agent_dict]
-                            agent_dict['model'].set_data(processed_data)
-                        
-                        if agent_dict['name'] == 'e2e':
-                            # TODO: Prepare sensor data -> tick()
-                            pass
+                    # Generate new destination if the current one is close 
+                    if len(agent_dict['route']) < 10:
+                        agent_dict['done'] = 1
+                        new_destination = random.choice(spawn_points).location
+                        new_route = planner.trace_route(agent_dict['route'][-1][0].transform.location, new_destination)
+                        temp_route = agent_dict['route'] + new_route
+                        agent_dict['route'] = temp_route
 
-                        t = Thread(target=agent_dict['model'].run_step, args=tuple(inputs))
-                        t_list.append(t)
-                        t.start()
-                    
-                    for t in t_list:
-                        t.join()
-
-                    start_time = time.time()
-                    for agent_dict in all_agent_list:
-                        control_elements_list = agent_dict["control"] 
-                        control_elements = control_elements_list[0]
-                        control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
-                        agent_dict["agent"].apply_control(control)
-
-                    world.hud.render(display)
-                    
-                    pygame.display.flip()
-                    
-                    scene_done = 1
-                    for agent_dict in all_agent_list:
-                        scene_done = scene_done and agent_dict['done']
-                    if scene_done:
-                        break
-
-                # Destroy all agent, world and HUD
+                #############################################################
+                # TODO: Need to prepare input for e2e driving model -> tick()
+                #                                                           #
+                #                                                           #
+                #                                                           #
+                #############################################################
+                t_list = []
+                all_agent_list = interactive_agent_list + ego_agent_list
                 for agent_dict in all_agent_list:
-                    agent_dict['agent'].destroy()
-                del all_agent_list
-                del ego_agent_list
-                del interactive_agent_list                
-                world.destroy()
-                del world
-                del hud
+                    if agent_dict['name'] == 'roach':
+                        route_list = [wp[0].transform.location for wp in agent_dict['route'][0:60]]
+                        start_time = time.time()
+                        inputs = [route_list, agent_dict]
+                        agent_dict['model'].set_data(processed_data)
+                    
+                    if agent_dict['name'] == 'e2e':
+                        # TODO: Prepare sensor data -> tick()
+                        pass
+
+                    t = Thread(target=agent_dict['model'].run_step, args=tuple(inputs))
+                    t_list.append(t)
+                    t.start()
+                
+                for t in t_list:
+                    t.join()
+
+                start_time = time.time()
+                for agent_dict in all_agent_list:
+                    control_elements_list = agent_dict["control"] 
+                    control_elements = control_elements_list[0]
+                    control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
+                    agent_dict["agent"].apply_control(control)
+
+                world.render(display)
+                
+                pygame.display.flip()
+                
+                scene_done = 1
+                for agent_dict in all_agent_list:
+                    scene_done = scene_done and agent_dict['done']
+                if scene_done:
+                    break
+
+            # Destroy all agent, world and HUD
+            for agent_dict in all_agent_list:
+                agent_dict['agent'].destroy()
+            del all_agent_list
+            del ego_agent_list
+            del interactive_agent_list                
+            world.destroy()
+            del client
+            del world
+            del hud
+            
+            pygame.quit()
                 
 
 
