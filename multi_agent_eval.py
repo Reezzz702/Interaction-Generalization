@@ -745,7 +745,6 @@ def init_multi_agent(world, client, agent_list, start_list, dest_list, roach_pol
                 agent_dict['model'] = roach_agent
                 agent_dict['name'] = agent
         if agent == "auto":
-            # TODO: implement TF++ autopilot
             agent_dict['imu'] = IMUSensor(carla_agent)
             auto_agent = AutoPilot(carla_agent)
             agent_dict['model'] = auto_agent    
