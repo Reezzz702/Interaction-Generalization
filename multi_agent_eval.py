@@ -45,6 +45,7 @@ import time
 import weakref
 
 from agents.navigation.behavior_agent import BehaviorAgent  # pylint: disable=import-error
+from autopilot import AutoPilot
 from bird_eye_view.Mask import Loc
 from carla import ColorConverter as cc
 from navigation.global_route_planner import GlobalRoutePlanner
@@ -743,13 +744,15 @@ def init_multi_agent(world, client, agent_list, start_list, dest_list, roach_pol
                 roach_agent.set_policy(roach_policy)
                 agent_dict['model'] = roach_agent
                 agent_dict['name'] = agent
-                # set route
-                route = planner.trace_route(carla_agent.get_location(), dest_trans)
-                agent_dict['route'] = route            
         if agent == "auto":
             # TODO: implement TF++ autopilot
-            pass
+            agent_dict['imu'] = IMUSensor(carla_agent)
+            auto_agent = AutoPilot(carla_agent)
+            agent_dict['model'] = auto_agent    
         
+        # set route
+        route = planner.trace_route(carla_agent.get_location(), dest_trans)
+        agent_dict['route'] = route                    
         agent_dict['done'] = 0
         interactive_agent_list.append(agent_dict)                
 
@@ -941,6 +944,8 @@ def game_loop(args):
             del client
             del world
             del hud
+            del global_roach
+            del global_roach_policy
             
             pygame.quit()
                 

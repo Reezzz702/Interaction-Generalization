@@ -392,12 +392,12 @@ class BEV_MAP():
     def set_data(self, proccessed_data):
         self.data = proccessed_data
 
-    def run_step(self, route_list, result):
+    def run_step(self, route_list, input_data):
         actor_dict =  copy.deepcopy(self.data)
 
-        ego_loc = carla.Location(x=actor_dict[result['id']]["location"]["x"], y=actor_dict[result['id']]["location"]["y"])
-        ego_pos = Loc(x=actor_dict[result['id']]["location"]["x"], y=actor_dict[result['id']]["location"]["y"])
-        ego_yaw = actor_dict[result['id']]["rotation"]["yaw"]
+        ego_loc = carla.Location(x=actor_dict[input_data['id']]["location"]["x"], y=actor_dict[input_data['id']]["location"]["y"])
+        ego_pos = Loc(x=actor_dict[input_data['id']]["location"]["x"], y=actor_dict[input_data['id']]["location"]["y"])
+        ego_yaw = actor_dict[input_data['id']]["rotation"]["yaw"]
 
 
         obstacle_bbox_list = []
@@ -482,7 +482,7 @@ class BEV_MAP():
             pos_3 = actor_dict[id]["cord_bounding_box"]["cord_2"]
             
 
-            if int(id) == int(result['id']):
+            if int(id) == int(input_data['id']):
                 agent_bbox_list.append([Loc(x=pos_0[0], y=pos_0[1]), 
                                         Loc(x=pos_1[0], y=pos_1[1]), 
                                         Loc(x=pos_2[0], y=pos_2[1]), 
@@ -509,48 +509,48 @@ class BEV_MAP():
             
 
 
-        if len(self.pedestrain_bbox_1_16[result['id']]) < 16:
-            self.pedestrain_bbox_1_16[result['id']].append(pedestrian_bbox_list)
+        if len(self.pedestrain_bbox_1_16[input_data['id']]) < 16:
+            self.pedestrain_bbox_1_16[input_data['id']].append(pedestrian_bbox_list)
         else:
-            self.pedestrain_bbox_1_16[result['id']].pop(0)
-            self.pedestrain_bbox_1_16[result['id']].append(pedestrian_bbox_list)
+            self.pedestrain_bbox_1_16[input_data['id']].pop(0)
+            self.pedestrain_bbox_1_16[input_data['id']].append(pedestrian_bbox_list)
 
-        if len(self.vehicle_bbox_1_16[result['id']]) < 16:
-            self.vehicle_bbox_1_16[result['id']].append(vehicle_bbox_list)
+        if len(self.vehicle_bbox_1_16[input_data['id']]) < 16:
+            self.vehicle_bbox_1_16[input_data['id']].append(vehicle_bbox_list)
         else:
-            self.vehicle_bbox_1_16[result['id']].pop(0)
-            self.vehicle_bbox_1_16[result['id']].append(vehicle_bbox_list)
+            self.vehicle_bbox_1_16[input_data['id']].pop(0)
+            self.vehicle_bbox_1_16[input_data['id']].append(vehicle_bbox_list)
 
 
-        if len(self.Y_bbox_1_16[result['id']]) < 16:
-            self.Y_bbox_1_16[result['id']].append(y_traffic_light_list)
+        if len(self.Y_bbox_1_16[input_data['id']]) < 16:
+            self.Y_bbox_1_16[input_data['id']].append(y_traffic_light_list)
         else:
-            self.Y_bbox_1_16[result['id']].pop(0)
-            self.Y_bbox_1_16[result['id']].append(y_traffic_light_list)
+            self.Y_bbox_1_16[input_data['id']].pop(0)
+            self.Y_bbox_1_16[input_data['id']].append(y_traffic_light_list)
 
 
-        if len(self.G_bbox_1_16[result['id']]) < 16:
-            self.G_bbox_1_16[result['id']].append(g_traffic_light_list)
+        if len(self.G_bbox_1_16[input_data['id']]) < 16:
+            self.G_bbox_1_16[input_data['id']].append(g_traffic_light_list)
         else:
-            self.G_bbox_1_16[result['id']].pop(0)
-            self.G_bbox_1_16[result['id']].append(g_traffic_light_list)
+            self.G_bbox_1_16[input_data['id']].pop(0)
+            self.G_bbox_1_16[input_data['id']].append(g_traffic_light_list)
 
-        if len(self.R_bbox_1_16[result['id']]) < 16:
-            self.R_bbox_1_16[result['id']].append(r_traffic_light_list)
+        if len(self.R_bbox_1_16[input_data['id']]) < 16:
+            self.R_bbox_1_16[input_data['id']].append(r_traffic_light_list)
         else:
-            self.R_bbox_1_16[result['id']].pop(0)
-            self.R_bbox_1_16[result['id']].append(r_traffic_light_list)
+            self.R_bbox_1_16[input_data['id']].pop(0)
+            self.R_bbox_1_16[input_data['id']].append(r_traffic_light_list)
 
 
         # if self.vehicle_bbox_1_16:
 
         birdview: BirdView = self.birdview_producer.produce(ego_pos, ego_yaw,
                                                        agent_bbox_list, 
-                                                       self.vehicle_bbox_1_16[result['id']],
-                                                       self.pedestrain_bbox_1_16[result['id']],
-                                                       self.R_bbox_1_16[result['id']],
-                                                       self.G_bbox_1_16[result['id']],
-                                                       self.Y_bbox_1_16[result['id']],
+                                                       self.vehicle_bbox_1_16[input_data['id']],
+                                                       self.pedestrain_bbox_1_16[input_data['id']],
+                                                       self.R_bbox_1_16[input_data['id']],
+                                                       self.G_bbox_1_16[input_data['id']],
+                                                       self.Y_bbox_1_16[input_data['id']],
                                                        obstacle_bbox_list,
                                                        route_list)
     
@@ -559,12 +559,12 @@ class BEV_MAP():
         roach_obs, new_array =  BirdViewProducer.as_roach_input(birdview)
 
         # input state   
-        throttle =  actor_dict[result['id']]["control"]["throttle"]
-        steer =  actor_dict[result['id']]["control"]["steer"]
-        brake =  actor_dict[result['id']]["control"]["brake"]
-        gear =  actor_dict[result['id']]["control"]["gear"]
-        vel_x =  actor_dict[result['id']]["vel_x"]
-        vel_y =  actor_dict[result['id']]["vel_y"]
+        throttle =  actor_dict[input_data['id']]["control"]["throttle"]
+        steer =  actor_dict[input_data['id']]["control"]["steer"]
+        brake =  actor_dict[input_data['id']]["control"]["brake"]
+        gear =  actor_dict[input_data['id']]["control"]["gear"]
+        vel_x =  actor_dict[input_data['id']]["vel_x"]
+        vel_y =  actor_dict[input_data['id']]["vel_y"]
         # throttle, steer, brake, gear/5.0 , vel_x, vel_y
 
         # combine input
@@ -584,10 +584,10 @@ class BEV_MAP():
         policy_input['birdview'] = np.expand_dims(roach_obs, 0)
 
        
-        self.policy_forward([policy_input], result)
+        self.policy_forward([policy_input], input_data)
 
         
-    def policy_forward(self, policy_inputs_list, result=None):    
+    def policy_forward(self, policy_inputs_list, input_data=None):    
         control_elements_list = []
         for policy_input in policy_inputs_list:
             actions, values, log_probs, mu, sigma, features = self.policy.forward(
@@ -612,4 +612,4 @@ class BEV_MAP():
                 control_elements['brake'] = brake
                 control_elements_list.append(control_elements)
 
-        result['control'] = control_elements_list
+        input_data['control'] = control_elements_list
