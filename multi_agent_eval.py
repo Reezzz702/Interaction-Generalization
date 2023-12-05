@@ -738,16 +738,17 @@ def init_multi_agent(world, client, agent_list, start_list, dest_list, roach_pol
             # TODO
             agent_dict['name'] = 'e2e'
         if agent == 'roach':            
-                # Initialize roach agent
-                roach_agent = BEV_MAP(map.name.split('/')[-1])
-                roach_agent.init_vehicle_bbox(carla_agent.id)
-                roach_agent.set_policy(roach_policy)
-                agent_dict['model'] = roach_agent
-                agent_dict['name'] = agent
+            # Initialize roach agent
+            roach_agent = BEV_MAP(map.name.split('/')[-1])
+            roach_agent.init_vehicle_bbox(carla_agent.id)
+            roach_agent.set_policy(roach_policy)
+            agent_dict['model'] = roach_agent
+            agent_dict['name'] = agent
         if agent == "auto":
             agent_dict['imu'] = IMUSensor(carla_agent)
-            auto_agent = AutoPilot(carla_agent)
-            agent_dict['model'] = auto_agent    
+            auto_agent = AutoPilot(carla_agent, world)
+            agent_dict['model'] = auto_agent   
+            agent_dict['name'] = 'auto' 
         
         # set route
         route = planner.trace_route(carla_agent.get_location(), dest_trans)
@@ -908,6 +909,12 @@ def game_loop(args):
                     if agent_dict['name'] == 'e2e':
                         # TODO: Prepare sensor data -> tick()
                         pass
+                    
+                    if agent_dict['name'] == "auto":
+                        route_list = [wp for wp in agent_dict['route'][0:60]]
+                        agent_dict['model'].tick(agent_dict)
+                        inputs = [route_list, agent_dict]
+
 
                     t = Thread(target=agent_dict['model'].run_step, args=tuple(inputs))
                     t_list.append(t)

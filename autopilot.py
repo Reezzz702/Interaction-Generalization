@@ -8,14 +8,16 @@ import math
 import numpy as np
 import carla
 
-from team_code.nav_planner import PIDController
+from copy import deepcopy
+from collections import deque, defaultdict
 from team_code.config import GlobalConfig
 import team_code.transfuser_utils as t_u
+from team_code.nav_planner import interpolate_trajectory, extrapolate_waypoint_route
 
 
 
 class AutoPilot():
-  def __init__(self, actor):
+  def __init__(self, actor, world):
     self.config = GlobalConfig()
 
     # Dynamics models
@@ -65,12 +67,16 @@ class AutoPilot():
     self.cleared_stop_signs = []
     self.visible_walker_ids = []
     self.walker_past_pos = {}  # Position of walker in the last frame
+    self.visualize = 0
     
     self.actor = actor
+    self._world = world
+    
+    self._waypoint_planner_extrapolation = RoutePlanner(self.config.dense_route_planner_min_distance,
+                                                        self.config.dense_route_planner_max_distance)
 
-  
-  def _init(self, hd_map):
-    self.world_map = carla.Map('RouteMap', hd_map[1]['opendrive'])
+    # Speed buffer for detecting "stuck" vehicles
+    self.vehicle_speed_buffer = defaultdict(lambda: {'velocity': [], 'throttle': [], 'brake': []})    
 
   def tick(self, input_data):
     # ego_transform = self.actor.get_transform()
@@ -105,6 +111,15 @@ class AutoPilot():
   def run_step(self, route_list, input_data):
     location = input_data['agent'].get_location()
     pos = np.array([location.x, location.y])
+    trajectory = [item[0].transform.location for item in route_list]
+        
+    self.dense_route, _ = interpolate_trajectory(self._world.get_map(), trajectory)
+    
+    # print('Sparse Waypoints:', len(route_list))
+    # print('Dense Waypoints:', len(self.dense_route))
+
+    self._waypoint_planner_extrapolation.set_route(self.dense_route, True)
+    self._waypoint_planner_extrapolation.save()
     
     _, near_command = route_list[1] if len(route_list) > 1 else route_list[0]
 
@@ -112,7 +127,7 @@ class AutoPilot():
 
     brake = self._get_brake(near_command)
 
-    ego_vehicle_waypoint = self.world_map.get_waypoint(input_data['agent'].get_location())
+    ego_vehicle_waypoint = self._world.get_map().get_waypoint(input_data['agent'].get_location())
     self.junction = ego_vehicle_waypoint.is_junction
 
     speed = input_data['speed']
@@ -142,17 +157,26 @@ class AutoPilot():
     self.throttle = control.throttle
     self.brake = control.brake
     self.target_speed = target_speed
+    
+    control_elements_list = []
+    control_elements = {}
+    control_elements['throttle'] = throttle
+    control_elements['steer'] = steer
+    control_elements['brake'] = brake
+    control_elements_list.append(control_elements)
+    
+    input_data['control'] = control_elements_list
   
   def _get_steer(self, brake, route, pos, theta, speed, restore=True):
 
     if len(route) == 1:
-      target = route[0][0]
+      target = np.array([route[0][0].transform.location.x, route[0][0].transform.location.y])
     else:
-      target = route[1][0]
+      target = np.array([route[1][0].transform.location.x, route[1][0].transform.location.y])
 
-    if self._waypoint_planner.is_last:  # end of route
-      angle = 0.0
-    elif (speed < 0.01) and brake:  # prevent accumulation
+    # if self._waypoint_planner.is_last:  # end of route
+    #   angle = 0.0
+    if (speed < 0.01) and brake:  # prevent accumulation
       angle = 0.0
     else:
       angle_unnorm = self._get_angle_to(pos, theta, target)
@@ -202,8 +226,8 @@ class AutoPilot():
 
     target_speed = target_speed if not brake else 0.0
 
-    if self._waypoint_planner.is_last:  # end of route
-      target_speed = 0.0
+    # if self._waypoint_planner.is_last:  # end of route
+    #   target_speed = 0.0
 
     delta = np.clip(target_speed - speed, 0.0, self.config.clip_delta)
 
@@ -933,4 +957,126 @@ class EgoModel():
     next_spds = np.array(next_spds)
 
     return next_locs, next_yaws, next_spds
-   
+  
+
+class PIDController(object):
+  """
+    PID controller
+    """
+
+  def __init__(self, k_p=1.0, k_i=0.0, k_d=0.0, n=20):
+    self.k_p = k_p
+    self.k_i = k_i
+    self.k_d = k_d
+
+    self._saved_window = deque([0 for _ in range(n)], maxlen=n)
+    self._window = deque([0 for _ in range(n)], maxlen=n)
+    self._max = 0.0
+    self._min = 0.0
+
+  def step(self, error):
+    self._window.append(error)
+    if len(self._window) >= 2:
+      integral = sum(self._window) / len(self._window)
+      derivative = (self._window[-1] - self._window[-2])
+    else:
+      integral = 0.0
+      derivative = 0.0
+
+    return self.k_p * error + self.k_i * integral + self.k_d * derivative
+
+  def save(self):
+    self._saved_window = deepcopy(self._window)
+
+  def load(self):
+    self._window = self._saved_window
+    
+class RoutePlanner(object):
+  """
+    Gets the next waypoint along a path
+    """
+
+  def __init__(self, min_distance, max_distance):
+    self.saved_route = deque()
+    self.route = deque()
+    self.saved_route_distances = deque()
+    self.route_distances = deque()
+
+    self.min_distance = min_distance
+    self.max_distance = max_distance
+    self.is_last = False
+
+    # for carla 9.10
+    self.mean = np.array([0.0, 0.0])
+    self.scale = np.array([111324.60662786, 111319.490945])
+
+  def convert_gps_to_carla(self, gps):
+    """
+    Converts GPS signal into the CARLA coordinate frame
+    :param gps: gps from gnss sensor
+    :return: gps as numpy array in CARLA coordinates
+    """
+    gps = (gps - self.mean) * self.scale
+    # GPS uses a different coordinate system than CARLA.
+    # This converts from GPS -> CARLA (90° rotation)
+    gps = np.array([gps[1], -gps[0]])
+    return gps
+
+  def set_route(self, global_plan, gps=False):
+    self.route.clear()
+
+    for pos, cmd in global_plan:
+      if gps:
+        pos = np.array([pos['lat'], pos['lon']])
+        pos = self.convert_gps_to_carla(pos)
+      else:
+        pos = np.array([pos.location.x, pos.location.y])
+        pos -= self.mean
+
+      self.route.append((pos, cmd))
+
+    # We do the calculations in the beginning once so that we don't have
+    # to do them every time in run_step
+    self.route_distances.append(0.0)
+    for i in range(1, len(self.route)):
+      diff = self.route[i][0] - self.route[i - 1][0]
+      distance = (diff[0]**2 + diff[1]**2)**0.5
+      self.route_distances.append(distance)
+
+  def run_step(self, gps):
+
+    if len(self.route) <= 2:
+      self.is_last = True
+      return self.route
+
+    to_pop = 0
+    farthest_in_range = -np.inf
+    cumulative_distance = 0.0
+    for i in range(1, len(self.route)):
+      if cumulative_distance > self.max_distance:
+        break
+
+      cumulative_distance += self.route_distances[i]
+
+      diff = self.route[i][0] - gps
+      distance = (diff[0]**2 + diff[1]**2)**0.5
+
+      if farthest_in_range < distance <= self.min_distance:
+        farthest_in_range = distance
+        to_pop = i
+
+    for _ in range(to_pop):
+      if len(self.route) > 2:
+        self.route.popleft()
+        self.route_distances.popleft()
+
+    return self.route
+
+  def save(self):
+    self.saved_route = deepcopy(self.route)
+    self.saved_route_distances = deepcopy(self.route_distances)
+
+  def load(self):
+    self.route = self.saved_route
+    self.route_distances = self.saved_route_distances
+    self.is_last = False
