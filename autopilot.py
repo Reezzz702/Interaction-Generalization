@@ -2,19 +2,13 @@
 Autopilot for evaluation, modified from https://github.com/autonomousvision/carla_garage
 """
 
-import os
-import ujson
-import datetime
-import pathlib
 import statistics
-import gzip
-from collections import deque, defaultdict
+
 import math
 import numpy as np
 import carla
 
-from team_code.nav_planner import PIDController, RoutePlanner, interpolate_trajectory, extrapolate_waypoint_route
-
+from team_code.nav_planner import PIDController
 from team_code.config import GlobalConfig
 import team_code.transfuser_utils as t_u
 
