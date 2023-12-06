@@ -48,7 +48,8 @@ from agents.navigation.behavior_agent import BehaviorAgent  # pylint: disable=im
 from autopilot import AutoPilot
 from bird_eye_view.Mask import Loc
 from carla import ColorConverter as cc
-from navigation.global_route_planner import GlobalRoutePlanner
+# from navigation.global_route_planner import GlobalRoutePlanner
+from agents.navigation.global_route_planner import GlobalRoutePlanner
 from random_actors import spawn_actor_assigned
 from roach_agent import BEV_MAP
 from threading import Thread
@@ -690,9 +691,9 @@ def check_close(ev_loc, loc0, distance = 3):
     if ev_loc.distance(loc0) < distance:
         return True
 
-def init_multi_agent(world, client, agent_list, start_list, dest_list, roach_policy=None):
+def init_multi_agent(world, planner, agent_list, start_list, dest_list, roach_policy=None):
     map = world.get_map()
-    planner = GlobalRoutePlanner(map, resolution=1.0)
+    # planner = GlobalRoutePlanner(map, sampling_resolution=1.0)
 
     ego_agent_list = []
     interactive_agent_list = []
@@ -731,30 +732,33 @@ def init_multi_agent(world, client, agent_list, start_list, dest_list, roach_pol
             carla_agent = world.spawn_actor(blueprint, spawn_trans)
             agent_dict['id'] = carla_agent.id
             agent_dict["agent"] = carla_agent
+            agent_dict['dest'] = dest_trans
+            route = planner.trace_route(carla_agent.get_location(), dest_trans)
+            agent_dict['route'] = route                    
+            agent_dict['done'] = 0
+
         except:
             print("Spawn failed because of collision at spawn position")
 
         if agent == "ego":
             # TODO
             agent_dict['name'] = 'e2e'
-        if agent == 'roach':            
-            # Initialize roach agent
-            roach_agent = BEV_MAP(map.name.split('/')[-1])
-            roach_agent.init_vehicle_bbox(carla_agent.id)
-            roach_agent.set_policy(roach_policy)
-            agent_dict['model'] = roach_agent
-            agent_dict['name'] = agent
-        if agent == "auto":
-            agent_dict['imu'] = IMUSensor(carla_agent)
-            auto_agent = AutoPilot(carla_agent, world)
-            agent_dict['model'] = auto_agent   
-            agent_dict['name'] = 'auto' 
-        
-        # set route
-        route = planner.trace_route(carla_agent.get_location(), dest_trans)
-        agent_dict['route'] = route                    
-        agent_dict['done'] = 0
-        interactive_agent_list.append(agent_dict)                
+        else:
+            if agent == 'roach':            
+                # Initialize roach agent
+                roach_agent = BEV_MAP(map.name.split('/')[-1])
+                roach_agent.init_vehicle_bbox(carla_agent.id)
+                roach_agent.set_policy(roach_policy)
+                agent_dict['model'] = roach_agent
+                agent_dict['name'] = agent
+            if agent == "auto":
+                agent_dict['imu'] = IMUSensor(carla_agent)
+                auto_agent = AutoPilot(carla_agent, world, route)
+                agent_dict['model'] = auto_agent   
+                agent_dict['name'] = 'auto' 
+            
+            # set route
+            interactive_agent_list.append(agent_dict)                
 
     
     return ego_agent_list, interactive_agent_list
@@ -817,7 +821,7 @@ def game_loop(args):
             # spawn other agent 
             map = world.world.get_map()
             spawn_points = map.get_spawn_points()
-            planner = GlobalRoutePlanner(map, resolution=1.0)                
+            planner = GlobalRoutePlanner(map, sampling_resolution=1.0)                
 
             # Initialize a global roach for all roach agent to avoid generating multipile HD maps
             global_roach = None
@@ -827,7 +831,7 @@ def game_loop(args):
                 global_roach.init_vehicle_bbox(world.player.id)
                 global_roach_policy = global_roach.init_policy()
                 
-            ego_agent_list, interactive_agent_list = init_multi_agent(world.world, client, scene['agent'], scene['start'], scene['dest'], global_roach_policy)
+            ego_agent_list, interactive_agent_list = init_multi_agent(world.world, planner, scene['agent'], scene['start'], scene['dest'], global_roach_policy)
 
             while True:
                 clock.tick_busy_loop(30)
@@ -848,6 +852,7 @@ def game_loop(args):
                 for agent_dict in interactive_agent_list:                        
                     # regenerate a route when the agent deviates from the current route
                     if not check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location, 6):
+                        print("route deviation")
                         destination = agent_dict['route'][-1][0].transform.location
                         agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), destination)
                     
@@ -855,13 +860,13 @@ def game_loop(args):
                     while check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location):
                         agent_dict['route'].pop(0)
                         if len(agent_dict['route']) == 0:
-                            # TODO: Set flag to record if all agent reach goal
+                            print("route len == 0")
                             agent_dict['done'] = 1
                             new_destination = random.choice(spawn_points).location
                             agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), new_destination)
                     # Generate new destination if the current one is close 
-                    if len(agent_dict['route']) < 10:
-                        # TODO: Set flag to record if all agent reach goal
+                    if len(agent_dict['route']) < 5:
+                        print("route len < 5")
                         agent_dict['done'] = 1
                         new_destination = random.choice(spawn_points).location
                         new_route = planner.trace_route(agent_dict['route'][-1][0].transform.location, new_destination)
@@ -939,7 +944,10 @@ def game_loop(args):
                     scene_done = scene_done and agent_dict['done']
                 if scene_done:
                     break
-
+                
+            
+            
+            print("destroy env")
             # Destroy all agent, world and HUD
             for agent_dict in all_agent_list:
                 agent_dict['agent'].destroy()

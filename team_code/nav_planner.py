@@ -84,7 +84,7 @@ class RoutePlanner(object):
         pos = np.array([pos['lat'], pos['lon']])
         pos = self.convert_gps_to_carla(pos)
       else:
-        pos = np.array([pos.location.x, pos.location.y])
+        pos = np.array([pos.transform.location.x, pos.transform.location.y])
         pos -= self.mean
 
       self.route.append((pos, cmd))
@@ -96,6 +96,7 @@ class RoutePlanner(object):
       diff = self.route[i][0] - self.route[i - 1][0]
       distance = (diff[0]**2 + diff[1]**2)**0.5
       self.route_distances.append(distance)
+    
 
   def run_step(self, gps):
 
