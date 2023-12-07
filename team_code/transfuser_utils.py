@@ -155,7 +155,8 @@ def preprocess_compass(compass):
     compass = 0.0
   # The minus 90.0 degree is because the compass sensor uses a different
   # coordinate system then CARLA. Check the coordinate_sytems.txt file
-  compass = normalize_angle(compass - np.deg2rad(90.0))
+  compass = normalize_angle(np.deg2rad(compass) - np.deg2rad(90.0))
+  # compass = normalize_angle(np.deg2rad(compass))
 
   return compass
 

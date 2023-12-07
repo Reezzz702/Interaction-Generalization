@@ -180,6 +180,22 @@ class BEV_MAP():
         self.policy = policy
 
         return policy
+    
+    def destroy(self):
+        del self.policy
+        del self.town
+        del self.data
+        del self.birdview_producer
+
+        del self.model 
+ 
+        del self.vehicle_bbox_1_16
+        del self.pedestrain_bbox_1_16
+
+        del self.Y_bbox_1_16
+        del self.G_bbox_1_16
+        del self.R_bbox_1_16
+        
     def set_policy(self, processed_policy):
         policy = copy.deepcopy(processed_policy)
         self.policy = policy

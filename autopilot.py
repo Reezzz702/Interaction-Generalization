@@ -8,11 +8,10 @@ import math
 import numpy as np
 import carla
 
-from copy import deepcopy
 from collections import deque, defaultdict
 from team_code.config import GlobalConfig
 import team_code.transfuser_utils as t_u
-from team_code.nav_planner import RoutePlanner, PIDController, interpolate_trajectory, extrapolate_waypoint_route
+from team_code.nav_planner import RoutePlanner, PIDController
 
 
 
@@ -71,25 +70,24 @@ class AutoPilot():
     self.actor = actor
     self._world = world
     
-    self._waypoint_planner = RoutePlanner(self.config.dense_route_planner_min_distance,
-                                          self.config.dense_route_planner_max_distance)
-
     self._waypoint_planner_extrapolation = RoutePlanner(self.config.dense_route_planner_min_distance,
                                                         self.config.dense_route_planner_max_distance)
     
-        
-    
-    # print('Sparse Waypoints:', len(route_list))
-    # print('Dense Waypoints:', len(self.dense_route))
-
     self._waypoint_planner_extrapolation.set_route(route_list)
     self._waypoint_planner_extrapolation.save()
     
-    self._waypoint_planner.set_route(route_list)
-    self._waypoint_planner.save()
-    
     # Speed buffer for detecting "stuck" vehicles
     self.vehicle_speed_buffer = defaultdict(lambda: {'velocity': [], 'throttle': [], 'brake': []})    
+
+  def destroy(self):
+    del self.visible_walker_ids
+    del self.walker_past_pos
+    del self._waypoint_planner_extrapolation
+    del self.ego_model
+    del self._turn_controller
+    del self._turn_controller_extrapolation
+    del self._speed_controller
+    del self._speed_controller_extrapolation
 
   def tick(self, input_data):
     compass = t_u.preprocess_compass(input_data['imu'].compass)
@@ -101,17 +99,15 @@ class AutoPilot():
     location = input_data['agent'].get_location()
     pos = np.array([location.x, location.y])
 
-    self._waypoint_planner.set_route(route_list)
-    self._waypoint_planner_extrapolation.set_route(route_list)
-    # self._waypoint_planner.load()
-    waypoint_route = self._waypoint_planner.run_step(pos)
-    for w, _ in route_list:
-      self._world.debug.draw_string(w.transform.location, 'O', draw_shadow=False,
-                                       color=carla.Color(r=255, g=0, b=0), life_time=120.0,
-                                       persistent_lines=True)
-    self._waypoint_planner.save()
+    # self._waypoint_planner.set_route(route_list)
+    # self._waypoint_planner_extrapolation.set_route(route_list)
+    # # self._waypoint_planner.load()
+    # waypoint_route = self._waypoint_planner.run_step(pos)
+
+    # self._waypoint_planner.save()
     
-    _, near_command = waypoint_route[1] if len(waypoint_route) > 1 else waypoint_route[0]
+    # _, near_command = waypoint_route[1] if len(waypoint_route) > 1 else waypoint_route[0]
+    near_command = route_list[1][1] if len(route_list) > 1 else route_list[0][1]
     
     brake = self._get_brake(near_command)
 
@@ -133,7 +129,7 @@ class AutoPilot():
     # Should brake represents braking due to control
     throttle, control_brake = self._get_throttle(brake, target_speed, speed)
 
-    steer = self._get_steer(brake, input_data['dest'], waypoint_route, pos, input_data['compass'], speed)
+    steer = self._get_steer(brake, route_list, pos, input_data['compass'], speed)
 
     # control = carla.VehicleControl()
     # control.steer = steer
@@ -154,22 +150,16 @@ class AutoPilot():
     
     input_data['control'] = control_elements_list
   
-  def _get_steer(self, brake, dest, route, pos, theta, speed, restore=True):
-    alpha = 1
-    far_target = np.array([dest.x, dest.y])
+  def _get_steer(self, brake,  route, pos, theta, speed, restore=True):
+    
     if len(route) == 1:
-      near_target = route[0][0]
+      near_target = np.array([route[0][0].transform.location.x, route[0][0].transform.location.y])
     else:
-      near_target = route[1][0]
-      
+      near_target = np.array([route[1][0].transform.location.x, route[1][0].transform.location.y])
+       
     # if self._waypoint_planner.is_last:  # end of route
     #   angle = 0.0
-    if (speed < 0.01) and brake:  # prevent accumulation
-      far_angle = 0.0
-    else:
-      far_angle_unnorm = self._get_angle_to(pos, theta, far_target)
-      far_angle = far_angle_unnorm / 90
-
+   
     if (speed < 0.01) and brake:  # prevent accumulation
       near_angle = 0.0
     else:
@@ -181,15 +171,12 @@ class AutoPilot():
 
     if restore:
       self._turn_controller.load()
-    far_steer = self._turn_controller.step(far_angle)
     near_steer = self._turn_controller.step(near_angle)
     if restore:
       self._turn_controller.save()
     
-    far_steer = np.clip(far_steer, -1.0, 1.0)
 
-    steer = np.clip(alpha*far_steer + (1-alpha)*near_steer, -1.0, 1.0)
-    print(steer, far_angle_unnorm, near_angle_unnorm)
+    steer = np.clip(near_steer, -1.0, 1.0)
     return steer
 
   def _get_steer_extrapolation(self, route, pos, theta, restore=True):

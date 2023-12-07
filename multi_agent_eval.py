@@ -91,15 +91,15 @@ class World(object):
             
         # layer map remove ...    
         
-        self.world.unload_map_layer(carla.MapLayer.Buildings)     
-        self.world.unload_map_layer(carla.MapLayer.Decals)     
-        self.world.unload_map_layer(carla.MapLayer.Foliage)     
-        self.world.unload_map_layer(carla.MapLayer.Ground)     
-        self.world.unload_map_layer(carla.MapLayer.ParkedVehicles)         
-        self.world.unload_map_layer(carla.MapLayer.Particles)     
-        self.world.unload_map_layer(carla.MapLayer.Props)     
-        self.world.unload_map_layer(carla.MapLayer.StreetLights)     
-        self.world.unload_map_layer(carla.MapLayer.Walls)     
+        # self.world.unload_map_layer(carla.MapLayer.Buildings)     
+        # self.world.unload_map_layer(carla.MapLayer.Decals)     
+        # self.world.unload_map_layer(carla.MapLayer.Foliage)     
+        # self.world.unload_map_layer(carla.MapLayer.Ground)     
+        # self.world.unload_map_layer(carla.MapLayer.ParkedVehicles)         
+        # self.world.unload_map_layer(carla.MapLayer.Particles)     
+        # self.world.unload_map_layer(carla.MapLayer.Props)     
+        # self.world.unload_map_layer(carla.MapLayer.StreetLights)     
+        # self.world.unload_map_layer(carla.MapLayer.Walls)     
 
         self.hud = hud
         self.player = None
@@ -116,19 +116,19 @@ class World(object):
         self.recording_start = 0
         self.constant_velocity_enabled = False
         self.current_map_layer = 0
-        self.map_layer_names = [
-            carla.MapLayer.NONE,
-            carla.MapLayer.Buildings,
-            carla.MapLayer.Decals,
-            carla.MapLayer.Foliage,
-            carla.MapLayer.Ground,
-            carla.MapLayer.ParkedVehicles,
-            carla.MapLayer.Particles,
-            carla.MapLayer.Props,
-            carla.MapLayer.StreetLights,
-            carla.MapLayer.Walls,
-            carla.MapLayer.All
-        ]
+        # self.map_layer_names = [
+        #     carla.MapLayer.NONE,
+        #     carla.MapLayer.Buildings,
+        #     carla.MapLayer.Decals,
+        #     carla.MapLayer.Foliage,
+        #     carla.MapLayer.Ground,
+        #     carla.MapLayer.ParkedVehicles,
+        #     carla.MapLayer.Particles,
+        #     carla.MapLayer.Props,
+        #     carla.MapLayer.StreetLights,
+        #     carla.MapLayer.Walls,
+        #     carla.MapLayer.All
+        # ]
 
     def restart(self):
         self.player_max_speed = 1.3 #1.589
@@ -173,7 +173,7 @@ class World(object):
                 sys.exit(1)
             spawn_points = self.map.get_spawn_points()
             spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
-            
+            # spawn_point = carla.Transform(carla.Location(x=-188.1, y=18.5))
             # spawn_point = carla.Transform()
             
             self.player = self.world.try_spawn_actor(blueprint, spawn_point)
@@ -378,7 +378,7 @@ class HUD(object):
                 ('Jump:', c.jump)]
 
         moving = False
-        acc = world.player.get_acceleration().length()
+        # acc = world.player.get_acceleration().length()
 
         if c.throttle == 0:
             self.jam += 1
@@ -579,7 +579,7 @@ class CameraManager(object):
 
         Attachment = carla.AttachmentType
 
-        self.camera_transform = (carla.Transform(carla.Location(x=assigned_location_dict['center'][0], y=assigned_location_dict['center'][1], z=50), carla.Rotation(pitch=-90, yaw=-90)), Attachment.SpringArmGhost)
+        self.camera_transform = (carla.Transform(carla.Location(x=assigned_location_dict['center'][0], y=assigned_location_dict['center'][1], z=50), carla.Rotation(pitch=-90, yaw=0)), Attachment.Rigid)
         self.sensor = ['sensor.camera.rgb', cc.Raw, 'Camera RGB']
         
         world = self._parent.get_world()
@@ -707,6 +707,7 @@ def init_multi_agent(world, planner, agent_list, start_list, dest_list, roach_po
         #####################  determine yaws by comparing the relative positions of spawn points and the center point ################
         x_diff = assigned_location_dict['center'][0] - assigned_location_dict[start_list[i]][0]
         y_diff = assigned_location_dict['center'][1] - assigned_location_dict[start_list[i]][1]
+
         if x_diff < 0 and y_diff < 0:
             spawn_trans.rotation.yaw = 270
         elif x_diff > 0 and y_diff < 0:
@@ -764,24 +765,24 @@ def init_multi_agent(world, planner, agent_list, start_list, dest_list, roach_po
     return ego_agent_list, interactive_agent_list
 
 
-assigned_location_dict = {'E1': (-188.1, 18.5),
-                    'E2': (-184.1, 18.5),
-                    'E3': (-188.2, -15.0),
-                    'E4': (-184.5, -15.0),
-                    'A1': (-174.5, -0.4),
-                    'A2': (-174.5, -4.1),
-                    'A3': (-204.8, -0.5),
-                    'A4': (-204.8, -3.9),
-                    'B1': (-204.8, 3.5),
-                    'B2': (-204.8, 6.6),
-                    'B3': (-174.5, 3.1),
-                    'B4': (-174.5, 6.78),
-                    'C1': (-191.8, -15.0),
-                    'C2': (-195.3, -15.0),
-                    'C3': (-191.5, 18.5),
-                    'C4': (-195.2, 18.5),
-                    'center': (-190.0, 2.0)
-                    }
+assigned_location_dict = {'E1': (13.700, 2.600),
+                        'E2': (13.700, 6.000),
+                        'E3': (47.200, 1.800),
+                        'E4': (47.200, 5.100),
+                        'A1': (31.600, 18.100),
+                        'A2': (35.100, 18.100),
+                        'A3': (31.400, -18.100),
+                        'A4': (34.900, -18.100),
+                        'B1': (27.900, -18.100),
+                        'B2': (24.400, -18.100),
+                        'B3': (28.200, 18.100),
+                        'B4': (24.600, 18.100),
+                        'C1': (47.200, -1.700),
+                        'C2': (47.200, -5.200),
+                        'C3': (10.700, -0.900),
+                        'C4': (10.700, -4.400),
+                        'center': (29.550, 0.85)
+                        }
 
 
 # ==============================================================================
@@ -843,16 +844,20 @@ def game_loop(args):
 
                 world.tick(clock, frame, image)
                 avg_FPS = 0.98 * avg_FPS + 0.02 * clock.get_fps()
-
+                
+                # continue
                 # collect data for all roach if needed
                 if global_roach:
                     processed_data = global_roach.collect_actor_data(world)
                 
+                
                 ###################player control#####################
                 for agent_dict in interactive_agent_list:                        
+                    
+
                     # regenerate a route when the agent deviates from the current route
                     if not check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location, 6):
-                        print("route deviation")
+                        print(f"route deviation: {agent_dict['name']}_{agent_dict['id']}")
                         destination = agent_dict['route'][-1][0].transform.location
                         agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), destination)
                     
@@ -860,23 +865,23 @@ def game_loop(args):
                     while check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location):
                         agent_dict['route'].pop(0)
                         if len(agent_dict['route']) == 0:
-                            print("route len == 0")
+                            print(f"route complete: {agent_dict['name']}_{agent_dict['id']}")
                             agent_dict['done'] = 1
                             new_destination = random.choice(spawn_points).location
                             agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), new_destination)
                     # Generate new destination if the current one is close 
-                    if len(agent_dict['route']) < 5:
-                        print("route len < 5")
-                        agent_dict['done'] = 1
-                        new_destination = random.choice(spawn_points).location
-                        new_route = planner.trace_route(agent_dict['route'][-1][0].transform.location, new_destination)
-                        temp_route = agent_dict['route'] + new_route
-                        agent_dict['route'] = temp_route       
+                    # if len(agent_dict['route']) < 5:
+                    #     print("route len < 5")
+                    #     agent_dict['done'] = 1
+                    #     new_destination = random.choice(spawn_points).location
+                    #     new_route = planner.trace_route(agent_dict['route'][-1][0].transform.location, new_destination)
+                    #     temp_route = agent_dict['route'] + new_route
+                    #     agent_dict['route'] = temp_route       
                 
                 for agent_dict in ego_agent_list:                            
                     # regenerate a route when the agent deviates from the current route
                     if not check_close(agent_dict['agent'].get_location(), agent_dict['route'][0][0].transform.location, 6):
-                        print("deviates")
+                        print(f"route deviation: {agent_dict['name']}_{agent_dict['id']}")
                         destination = agent_dict['route'][-1][0].transform.location
                         agent_dict['route'] = planner.trace_route(agent_dict['agent'].get_location(), destination)
                     
@@ -884,17 +889,18 @@ def game_loop(args):
                     while check_close(agent_dict['agent'].get_location(), agent_dict['route'][0][0].transform.location):
                         agent_dict['route'].pop(0)
                         if len(agent_dict['route']) == 0:
+                            print(f"route complete: {agent_dict['name']}_{agent_dict['id']}")
                             agent_dict['done'] = 1
                             new_destination = random.choice(spawn_points).location
                             agent_dict['route'] = planner.trace_route(agent_dict['agent'].get_location(), new_destination)
 
-                    # Generate new destination if the current one is close 
-                    if len(agent_dict['route']) < 10:
-                        agent_dict['done'] = 1
-                        new_destination = random.choice(spawn_points).location
-                        new_route = planner.trace_route(agent_dict['route'][-1][0].transform.location, new_destination)
-                        temp_route = agent_dict['route'] + new_route
-                        agent_dict['route'] = temp_route
+                    # # Generate new destination if the current one is close 
+                    # if len(agent_dict['route']) < 10:
+                    #     agent_dict['done'] = 1
+                    #     new_destination = random.choice(spawn_points).location
+                    #     new_route = planner.trace_route(agent_dict['route'][-1][0].transform.location, new_destination)
+                    #     temp_route = agent_dict['route'] + new_route
+                    #     agent_dict['route'] = temp_route
 
                 #############################################################
                 # TODO: Need to prepare input for e2e driving model -> tick()
@@ -908,6 +914,10 @@ def game_loop(args):
                     if agent_dict['name'] == 'roach':
                         route_list = [wp[0].transform.location for wp in agent_dict['route'][0:60]]
                         start_time = time.time()
+                        for w in route_list:
+                            world.world.debug.draw_string(w, 'O', draw_shadow=False,
+                                                        color=carla.Color(r=255, g=0, b=0), life_time=10.0,
+                                                        persistent_lines=True)
                         inputs = [route_list, agent_dict]
                         agent_dict['model'].set_data(processed_data)
                     
@@ -917,6 +927,10 @@ def game_loop(args):
                     
                     if agent_dict['name'] == "auto":
                         route_list = [wp for wp in agent_dict['route'][0:60]]
+                        for w, _ in route_list:
+                            world.world.debug.draw_string(w.transform.location, 'O', draw_shadow=False,
+                                                        color=carla.Color(r=255, g=0, b=0), life_time=10.0,
+                                                        persistent_lines=True)
                         agent_dict['model'].tick(agent_dict)
                         inputs = [route_list, agent_dict]
 
@@ -951,6 +965,7 @@ def game_loop(args):
             # Destroy all agent, world and HUD
             for agent_dict in all_agent_list:
                 agent_dict['agent'].destroy()
+                agent_dict['model'].destroy()
             del all_agent_list
             del ego_agent_list
             del interactive_agent_list                
