@@ -33,7 +33,7 @@ torch.backends.cudnn.allow_tf32 = True
 
 
 
-class SensorAgent():
+class SRLAgent():
   def __init__(self, actor, world, path_to_config) -> None:
     torch.cuda.empty_cache()
     self.config_path = path_to_config
