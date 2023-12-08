@@ -99,14 +99,6 @@ class AutoPilot():
     location = input_data['agent'].get_location()
     pos = np.array([location.x, location.y])
 
-    # self._waypoint_planner.set_route(route_list)
-    # self._waypoint_planner_extrapolation.set_route(route_list)
-    # # self._waypoint_planner.load()
-    # waypoint_route = self._waypoint_planner.run_step(pos)
-
-    # self._waypoint_planner.save()
-    
-    # _, near_command = waypoint_route[1] if len(waypoint_route) > 1 else waypoint_route[0]
     near_command = route_list[1][1] if len(route_list) > 1 else route_list[0][1]
     
     brake = self._get_brake(near_command)

@@ -743,7 +743,10 @@ def init_multi_agent(world, planner, agent_list, start_list, dest_list, roach_po
 
         if agent == "ego":
             # TODO
+            agent_dict['imu'] = IMUSensor(carla_agent)
             agent_dict['name'] = 'e2e'
+            
+            ego_agent_list.append(agent_dict)
         else:
             if agent == 'roach':            
                 # Initialize roach agent
