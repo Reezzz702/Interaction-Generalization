@@ -142,22 +142,50 @@ class SRLAgent():
   def destroy(self):
     pass
   
+  def sensors(self):
+    sensors = [{
+        'type': 'sensor.camera.rgb',
+        'x': self.config.camera_pos[0],
+        'y': self.config.camera_pos[1],
+        'z': self.config.camera_pos[2],
+        'roll': self.config.camera_rot_0[0],
+        'pitch': self.config.camera_rot_0[1],
+        'yaw': self.config.camera_rot_0[2],
+        'width': self.config.camera_width,
+        'height': self.config.camera_height,
+        'fov': self.config.camera_fov,
+        'id': 'rgb_front'
+    }, {
+          'type': 'sensor.lidar.ray_cast',
+          'x': self.config.lidar_pos[0],
+          'y': self.config.lidar_pos[1],
+          'z': self.config.lidar_pos[2],
+          'roll': self.config.lidar_rot[0],
+          'pitch': self.config.lidar_rot[1],
+          'yaw': self.config.lidar_rot[2],
+          'id': 'lidar'
+    }]
+
+    return sensors
+  
   @torch.inference_mode()  # Turns off gradient computation
   def tick(self, input_data):    
     rgb = []
-    camera = input_data['rgb'][1][:, :, :3]
+    
+    if input_data['rgb'] is not None:
+      camera = input_data['rgb'].image[:, :, :3]
 
-    # Also add jpg artifacts at test time, because the training data was saved as jpg.
-    _, compressed_image_i = cv2.imencode('.jpg', camera)
-    camera = cv2.imdecode(compressed_image_i, cv2.IMREAD_UNCHANGED)
+      # Also add jpg artifacts at test time, because the training data was saved as jpg.
+      _, compressed_image_i = cv2.imencode('.jpg', camera)
+      camera = cv2.imdecode(compressed_image_i, cv2.IMREAD_UNCHANGED)
 
-    rgb_pos = cv2.cvtColor(camera, cv2.COLOR_BGR2RGB)
-    # Switch to pytorch channel first order
-    rgb_pos = np.transpose(rgb_pos, (2, 0, 1))
-    rgb.append(rgb_pos)
+      rgb_pos = cv2.cvtColor(camera, cv2.COLOR_BGR2RGB)
+      # Switch to pytorch channel first order
+      rgb_pos = np.transpose(rgb_pos, (2, 0, 1))
+      rgb.append(rgb_pos)
 
-    rgb = np.concatenate(rgb, axis=1)
-    rgb = torch.from_numpy(rgb).to(self.device, dtype=torch.float32).unsqueeze(0)
+      rgb = np.concatenate(rgb, axis=1)
+      rgb = torch.from_numpy(rgb).to(self.device, dtype=torch.float32).unsqueeze(0)
 
     location = input_data['agent'].get_location()
     pos = np.array([location.x, location.y])
@@ -170,7 +198,9 @@ class SRLAgent():
         'compass': compass,
     }
     result['speed'] = torch.FloatTensor([speed]).to(self.device, dtype=torch.float32)
-    result['lidar'] = t_u.lidar_to_ego_coordinate(self.config, input_data['lidar'])
+  
+    if input_data['lidar'] is not None:
+      result['lidar'] = t_u.lidar_to_ego_coordinate(self.config, input_data['lidar'].points)
 
     if not self.filter_initialized:
       self.ukf.x = np.array([pos[0], pos[1], t_u.normalize_angle(compass), speed])
@@ -215,7 +245,8 @@ class SRLAgent():
       self.initialized = True
       control = carla.VehicleControl(steer=0.0, throttle=0.0, brake=1.0)
       self.control = control
-      self.lidar_last = deepcopy(tick_data['lidar'])
+      if "lidar" in tick_data:
+        self.lidar_last = deepcopy(tick_data['lidar'])
       return control
 
     
@@ -252,13 +283,172 @@ class SRLAgent():
       self.lidar_last = deepcopy(tick_data['lidar'])
 
       return self.control
-    
-    # Possible action repeat configuration
-    if self.step % self.config.action_repeat == 1:
-      self.lidar_last = deepcopy(tick_data['lidar'])
 
-      return self.control
+    # Voxelize LiDAR and stack temporal frames
+    lidar_bev = []
+    # prepare LiDAR input
+    for i in lidar_indices:
+      lidar_point_cloud = deepcopy(self.lidar_buffer[i])
 
+      # For single frame there is no point in realignment. The state_log index will also differ.
+      if self.config.realign_lidar and self.config.lidar_seq_len > 1:
+        # Position of the car when the LiDAR was collected
+        curr_x = self.state_log[i][0]
+        curr_y = self.state_log[i][1]
+        curr_theta = self.state_log[i][2]
+
+        # Voxelize to BEV for NN to process
+        lidar_point_cloud = self.align_lidar(lidar_point_cloud, curr_x, curr_y, curr_theta, ego_x, ego_y, ego_theta)
+
+      lidar_histogram = torch.from_numpy(
+          self.data.lidar_to_histogram_features(lidar_point_cloud,
+                                                use_ground_plane=self.config.use_ground_plane)).unsqueeze(0)
+
+      lidar_histogram = lidar_histogram.to(self.device, dtype=torch.float32)
+      lidar_bev.append(lidar_histogram)
+
+      lidar_bev = torch.cat(lidar_bev, dim=1)
+
+    self.lidar_last = deepcopy(tick_data['lidar'])
+
+    # prepare velocity input
+    gt_velocity = tick_data['speed']
+    velocity = gt_velocity.reshape(1, 1)  # used by transfuser
+
+    # forward pass
+    pred_wps = []
+    pred_target_speeds = []
+    pred_checkpoints = []
+    bounding_boxes = []
+    wp_selected = None
+    for i in range(self.model_count):
+      pred_wp,\
+      pred_target_speed,\
+      pred_checkpoint,\
+      pred_semantic, \
+      pred_bev_semantic, \
+      pred_depth, \
+      pred_hdmap, \
+      pred_route, \
+      pred_vehicle_occupancy, \
+      pred_pedestrian_occupancy, \
+      pred_bounding_box, _, \
+      pred_wp_1, \
+      selected_path = self.nets[i].forward(
+        rgb=tick_data['rgb'],
+        lidar_bev=lidar_bev,
+        target_point=tick_data['target_point'],
+        ego_vel=velocity,
+        command=tick_data['command'])
+      
+      if self.config.use_wp_gru:
+        if self.config.multi_wp_output:
+          wp_selected = 0
+          if F.sigmoid(selected_path)[0].item() > 0.5:
+            wp_selected = 1
+            pred_wps.append(pred_wp_1)
+          else:
+            pred_wps.append(pred_wp)
+        else:
+          pred_wps.append(pred_wp)
+      if self.config.use_controller_input_prediction:
+        pred_target_speeds.append(F.softmax(pred_target_speed[0], dim=0))
+        pred_checkpoints.append(pred_checkpoint[0][1])
+
+
+    if self.stop_sign_controller:
+      stop_for_stop_sign = self.stop_sign_controller_step(gt_velocity.item())
+
+    if self.config.use_wp_gru:
+      self.pred_wp = torch.stack(pred_wps, dim=0).mean(dim=0)
+
+    if self.config.use_controller_input_prediction:
+      pred_target_speed = torch.stack(pred_target_speeds, dim=0).mean(dim=0)
+      pred_aim_wp = torch.stack(pred_checkpoints, dim=0).mean(dim=0)
+
+      pred_aim_wp = pred_aim_wp.detach().cpu().numpy()
+      pred_angle = -math.degrees(math.atan2(-pred_aim_wp[1], pred_aim_wp[0])) / 90.0
+
+      if self.tp_stats:
+        loc_tp = tick_data['target_point'].detach().cpu().numpy()[0]
+        deg_pred_angle = pred_angle * 90.0
+        tp_angle = -math.degrees(math.atan2(-loc_tp[1], loc_tp[0]))
+        if abs(tp_angle) > 1.0 and abs(deg_pred_angle) > 1.0:
+          same_direction = float(tp_angle * deg_pred_angle >= 0.0)
+          self.tp_sign_agrees_with_angle.append(same_direction)
+
+      if self.uncertainty_weight:
+        uncertainty = pred_target_speed.detach().cpu().numpy()
+        if uncertainty[0] > self.config.brake_uncertainty_threshold:
+          pred_target_speed = self.config.target_speeds[0]
+        else:
+          pred_target_speed = sum(uncertainty * self.config.target_speeds)
+      else:
+        pred_target_speed_index = torch.argmax(pred_target_speed)
+        pred_target_speed = self.config.target_speeds[pred_target_speed_index]
+
+    if self.config.inference_direct_controller and self.config.use_controller_input_prediction:
+      steer, throttle, brake = self.nets[0].control_pid_direct(pred_target_speed, pred_angle, gt_velocity)
+    elif self.config.use_wp_gru and not self.config.inference_direct_controller:
+      steer, throttle, brake = self.nets[0].control_pid(self.pred_wp, gt_velocity)
+    else:
+      raise ValueError('An output representation was chosen that was not trained.')
+
+    # 0.1 is just an arbitrary low number to threshold when the car is stopped
+    if gt_velocity < 0.1:
+      self.stuck_detector += 1
+    else:
+      self.stuck_detector = 0
+
+    # Restart mechanism in case the car got stuck. Not used a lot anymore but doesn't hurt to keep it.
+    if self.stuck_detector > self.config.stuck_threshold:
+      self.force_move = self.config.creep_duration
+
+    if self.force_move > 0:
+      emergency_stop = False
+      if self.config.backbone not in ('aim'):
+        # safety check
+        safety_box = deepcopy(self.lidar_buffer[-1])
+
+        # z-axis
+        safety_box = safety_box[safety_box[..., 2] > self.config.safety_box_z_min]
+        safety_box = safety_box[safety_box[..., 2] < self.config.safety_box_z_max]
+
+        # y-axis
+        safety_box = safety_box[safety_box[..., 1] > self.config.safety_box_y_min]
+        safety_box = safety_box[safety_box[..., 1] < self.config.safety_box_y_max]
+
+        # x-axis
+        safety_box = safety_box[safety_box[..., 0] > self.config.safety_box_x_min]
+        safety_box = safety_box[safety_box[..., 0] < self.config.safety_box_x_max]
+        emergency_stop = (len(safety_box) > 0)  # Checks if the List is empty
+
+      if not emergency_stop:
+        print('Detected agent being stuck. Step: ', self.step)
+        throttle = max(self.config.creep_throttle, throttle)
+        brake = False
+        self.force_move -= 1
+      else:
+        print('Creeping stopped by safety box. Step: ', self.step)
+        throttle = 0.0
+        brake = True
+        self.force_move = self.config.creep_duration
+
+    if self.stop_sign_controller:
+      if stop_for_stop_sign:
+        throttle = 0.0
+        brake = True
+
+    control = carla.VehicleControl(steer=float(steer), throttle=float(throttle), brake=float(brake))
+
+    # CARLA will not let the car drive in the initial frames.
+    # We set the action to brake so that the filter does not get confused.
+    if self.step < self.config.inital_frames_delay:
+      self.control = carla.VehicleControl(0.0, 0.0, 1.0)
+    else:
+      self.control = control
+
+    return control
   
   
   def _get_forward_speed(self, transform=None, velocity=None):
