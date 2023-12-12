@@ -231,8 +231,8 @@ class World(object):
 	def tick(self, clock, frame, display):
 		end = self.hud.tick(self, clock, self.camera_manager, frame, display)
 		return end
-	def render(self, display):
-		image = self.camera_manager.image
+	def render(self, display, frame):
+		image = self.camera_manager.get_data(frame)
 		image = image[:, :, :3]
 		image = image[:, :, ::-1]
 
@@ -626,6 +626,14 @@ class CameraSensor(object):
 
 		self.sensor.listen(lambda image: CameraSensor._parse_image(weak_self, image))
 
+	def get_data(self, frame):
+		while True:
+			if self.image.frame == frame:
+				self.image.convert(self.sensors[1])
+				array = np.frombuffer(self.image.raw_data, dtype=np.dtype("uint8"))
+				array = deepcopy(array)
+				array = np.reshape(array, (self.image.height, self.image.width, 4))		# array = array[:, :, ::-1]
+				return array
 
 	@staticmethod
 	def _parse_image(weak_self, image):
@@ -633,11 +641,11 @@ class CameraSensor(object):
 		if not self:
 			return
 		
-		image.convert(self.sensors[1])
-		array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
-		array = deepcopy(array)
-		array = np.reshape(array, (image.height, image.width, 4))		# array = array[:, :, ::-1]
-		self.image = array
+		# image.convert(self.sensors[1])
+		# array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
+		# array = deepcopy(array)
+		# array = np.reshape(array, (image.height, image.width, 4))		# array = array[:, :, ::-1]
+		self.image = image
 	
 
 # ==============================================================================
@@ -683,108 +691,27 @@ class LidarSensor(object):
 		weak_self = weakref.ref(self)
 
 		self.sensor.listen(lambda lidar: LidarSensor._parse_lidar(weak_self, lidar))
-		
+  
+	def get_data(self, frame):
+		while True:
+			if self.points.frame == frame:
+				points = np.frombuffer(self.points.raw_data, dtype=np.dtype('f4'))
+				points = deepcopy(points)
+				points = np.reshape(points, (int(points.shape[0] / 4), 4))
+				return points
+  
 	@staticmethod
 	def _parse_lidar(weak_self, lidar):
 		self = weak_self()
 		if not self:
 			return
 		
-		points = np.frombuffer(lidar.raw_data, dtype=np.dtype('f4'))
-		points = deepcopy(points)
-		points = np.reshape(points, (int(points.shape[0] / 4), 4))
-		self.points = points
+		# points = np.frombuffer(lidar.raw_data, dtype=np.dtype('f4'))
+		# points = deepcopy(points)
+		# points = np.reshape(points, (int(points.shape[0] / 4), 4))
+		self.points = lidar
 
 
-# ==============================================================================
-# -- CameraManager -------------------------------------------------------------
-# ==============================================================================
-# class CameraManager(object):
-# 	def __init__(self, parent_actor,):
-# 		# self.sensor_front = None
-# 		self.sensor_rgb_bev = None
-
-# 		self.surface = None
-# 		self._parent = parent_actor
-
-# 		self.rgb_front = None
-# 		self.ss_front = None
-
-
-# 		Attachment = carla.AttachmentType
-
-# 		self.camera_transform = (carla.Transform(carla.Location(x=assigned_location_dict['center'][0], y=assigned_location_dict['center'][1], z=50), carla.Rotation(pitch=-90, yaw=0)), Attachment.Rigid)
-# 		self.sensor = ['sensor.camera.rgb', cc.Raw, 'Camera RGB']
-		
-# 		world = self._parent.get_world()
-# 		bp_library = world.get_blueprint_library()
-		
-# 		self.sensor_rgb_bp = bp_library.find('sensor.camera.rgb')
-# 		self.sensor_rgb_bp.set_attribute('image_size_x', str(512))
-# 		self.sensor_rgb_bp.set_attribute('image_size_y', str(512))
-# 		self.sensor_rgb_bp.set_attribute('fov', str(60.0))
-		
-		 
-# 		# bp = bp_library.find(self.sensor[0])
-# 		# if self.sensor[0].startswith('sensor.camera'):
-# 		# 	bp.set_attribute('image_size_x', str(hud.dim[0]))
-# 		# 	bp.set_attribute('image_size_y', str(hud.dim[1]))
-# 		# 	if bp.has_attribute('gamma'):
-# 		# 		bp.set_attribute('gamma', str(gamma_correction))
-# 		# 	# for attr_name, attr_value in self.sensor[3].items():
-# 		# 	#     bp.set_attribute(attr_name, attr_value)
-
-
-# 		self.index = None
-
-# 	def toggle_camera(self):
-# 		self.set_sensor(notify=False, force_respawn=True)
-
-# 	def set_sensor(self, notify=True, force_respawn=False):
-# 		if self.sensor_rgb_bev is not None:
-# 			self.sensor_rgb_bev.destroy()
-# 			self.surface = None
-
-# 		# rgb sensor
-# 			## setup sensors [ tf sensors  ( total 6 * 3 sensors ) ] 
-# 			# rgb 
-# 		self.sensor_rgb_bev = self._parent.get_world().spawn_actor(
-# 			self.sensor_rgb_bp,
-# 			self.camera_transform[0]
-# 		)
-		
-
-# 		# We need to pass the lambda a weak reference to self to avoid
-# 		# circular reference.
-# 		weak_self = weakref.ref(self)
-
-# 		self.sensor_rgb_bev.listen(lambda image: CameraManager._parse_image(weak_self, image, 'rgb_bev'))
-
-# 		# if notify:
-# 		#     self.hud.notification(self.sensors[index][2])
-# 		# self.index = index
-
-		
-# 	def render(self, display):
-# 		if self.surface is not None:
-# 			display.blit(self.surface, (0, 0))
-
-# 	@staticmethod
-# 	def _parse_image(weak_self, image, view='rgb_bev'):
-# 		self = weak_self()
-# 		if not self:
-# 			return
-		
-# 		elif view == 'rgb_bev':
-# 			image.convert(self.sensor[1])
-# 			array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
-# 			array = np.reshape(array, (512, 512, 4))
-# 			array = array[:, :, :3]
-# 			array = array[:, :, ::-1]
-
-# 			# render the view shown in monitor
-# 			self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
-			
 			
 def get_actor_blueprints(world, filter, generation):
 	bps = world.get_blueprint_library().filter(filter)
@@ -1062,8 +989,9 @@ def game_loop(args):
 							world.world.debug.draw_string(w.transform.location, 'O', draw_shadow=False,
 														color=carla.Color(r=255, g=0, b=0), life_time=10.0,
 														persistent_lines=True)
-						print(f"{agent_dict['id']}: {type(agent_dict['rgb'].image)}")
-						image = agent_dict['rgb'].image.copy()
+
+						image = agent_dict['rgb'].get_data(frame)
+						print(f"{agent_dict['id']}: {type(image)}")
 						# tick_data = agent_dict['model'].tick(agent_dict)
 							# inputs = [tick_data, agent_dict]
 
@@ -1092,7 +1020,7 @@ def game_loop(args):
 				# 	# control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
 				# 	agent_dict["agent"].apply_control(control)
 
-				world.render(display)
+				world.render(display, frame)
 				
 				pygame.display.flip()
 				
