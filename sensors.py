@@ -36,8 +36,8 @@ class SensorManager(object):
 		self.sensors_dict = {}
 		self.data = {}
 
-	def setup(self, parent_actor_list):		
-		for parent_actor, sensor_spec_list in parent_actor_list.items():
+	def setup(self, parent_actor_dict):		
+		for parent_actor, sensor_spec_list in parent_actor_dict.items():
 			if sensor_spec_list:
 				actor_id = parent_actor.id
 				actor_sensor_dict = {}
@@ -46,7 +46,7 @@ class SensorManager(object):
 					sensor_transform = (carla.Transform(carla.Location(x=sensor_spec['x'], y=sensor_spec['y'], z=sensor_spec['z']), carla.Rotation(roll=sensor_spec['roll'], pitch=sensor_spec['pitch'], yaw=sensor_spec['yaw'])), self.Attachment.Rigid)	
 					sensor_bp = self.bp_library.find(str(sensor_spec['type']))
 					sensor_id = sensor_spec['id']
-					if sensor_spec['type'].startwith('sensor.camera'):
+					if sensor_spec['type'].startswith('sensor.camera'):
 						sensor_bp.set_attribute('image_size_x', str(sensor_spec['width']))
 						sensor_bp.set_attribute('image_size_y', str(sensor_spec['height']))
 						sensor_bp.set_attribute('fov', str(sensor_spec['fov']))
@@ -55,7 +55,7 @@ class SensorManager(object):
 						sensor_bp.set_attribute('chromatic_aberration_intensity', str(0.5))
 						sensor_bp.set_attribute('chromatic_aberration_offset', str(0))
 					
-					if sensor_spec['type'].startwith('sensor.lidar'):
+					if sensor_spec['type'].startswith('sensor.lidar'):
 						sensor_bp.set_attribute('range', str(85))
 						sensor_bp.set_attribute('rotation_frequency', str(10))
 						sensor_bp.set_attribute('channels', str(64))
@@ -108,38 +108,42 @@ class SensorManager(object):
 		if not sensor_id:
 			while True:
 				if self.data[actor_id].frame == frame:
-					self.data[actor_id].convert(self.sensors[1])
-					array = np.frombuffer(self.data[actor_id].raw_data, dtype=np.dtype("uint8"))
-					array = deepcopy(array)
-					array = np.reshape(array, (self.data[actor_id].height, self.data[actor_id].width, 4))		# array = array[:, :, ::-1]
-					return array
+					break
+			self.data[actor_id].convert(self.sensors[1])
+			array = np.frombuffer(self.data[actor_id].raw_data, dtype=np.dtype("uint8"))
+			array = deepcopy(array)
+			array = np.reshape(array, (self.data[actor_id].height, self.data[actor_id].width, 4))		# array = array[:, :, ::-1]
+			return array
 		else:
-			if sensor_id.startwith('rgb'):
+			if sensor_id.startswith('rgb'):
 				while True:
 					if self.data[actor_id][sensor_id].frame == frame:
-						self.data[actor_id][sensor_id].convert(self.sensors[1])
-						array = np.frombuffer(self.data[actor_id][sensor_id].raw_data, dtype=np.dtype("uint8"))
-						array = deepcopy(array)
-						array = np.reshape(array, (self.data[actor_id][sensor_id].height, self.data[actor_id][sensor_id].width, 4))		# array = array[:, :, ::-1]
-						return array
+						break
+				self.data[actor_id][sensor_id].convert(self.sensors[1])
+				array = np.frombuffer(self.data[actor_id][sensor_id].raw_data, dtype=np.dtype("uint8"))
+				array = deepcopy(array)
+				array = np.reshape(array, (self.data[actor_id][sensor_id].height, self.data[actor_id][sensor_id].width, 4))		# array = array[:, :, ::-1]
+				return array
 			else:
 				while True:
-					points = np.frombuffer(self.data[actor_id][sensor_id].raw_data, dtype=np.dtype('f4'))
-					points = deepcopy(points)
-					points = np.reshape(points, (int(points.shape[0] / 4), 4))
-					return points
+					if self.data[actor_id][sensor_id].frame == frame:
+						break
+				points = np.frombuffer(self.data[actor_id][sensor_id].raw_data, dtype=np.dtype('f4'))
+				points = deepcopy(points)
+				points = np.reshape(points, (int(points.shape[0] / 4), 4))
+				return points
 						
 
 	@staticmethod
-	def _parse_data(weak_self, data, id, type=None):
+	def _parse_data(weak_self, data, id, sensor_id=None):
 		self = weak_self()
 		if not self:
 			return
 		
-		if not type:
+		if not sensor_id:
 			self.data[id] = data	
 		else:
-			self.data[id][type] = data
+			self.data[id][sensor_id] = data
 
   	# image.convert(self.sensors[1])
 		# array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))

@@ -54,6 +54,7 @@ from agents.navigation.global_route_planner import GlobalRoutePlanner
 from random_actors import spawn_actor_assigned
 from roach_agent import BEV_MAP
 from threading import Thread
+from sensors import SensorManager
 # from SRL_agent import SRLAgent
 
 # ==============================================================================
@@ -90,19 +91,6 @@ class World(object):
 			print('  Make sure it exists, has the same name of your town, and is correct.')
 			sys.exit(1)
 			
-			
-		# layer map remove ...    
-		
-		# self.world.unload_map_layer(carla.MapLayer.Buildings)     
-		# self.world.unload_map_layer(carla.MapLayer.Decals)     
-		# self.world.unload_map_layer(carla.MapLayer.Foliage)     
-		# self.world.unload_map_layer(carla.MapLayer.Ground)     
-		# self.world.unload_map_layer(carla.MapLayer.ParkedVehicles)         
-		# self.world.unload_map_layer(carla.MapLayer.Particles)     
-		# self.world.unload_map_layer(carla.MapLayer.Props)     
-		# self.world.unload_map_layer(carla.MapLayer.StreetLights)     
-		# self.world.unload_map_layer(carla.MapLayer.Walls)     
-
 		self.hud = hud
 		self.player = None
 		self.gnss_sensor = None
@@ -119,19 +107,6 @@ class World(object):
 		self.constant_velocity_enabled = False
 		self.current_map_layer = 0
 		self.surface = None
-		# self.map_layer_names = [
-		#     carla.MapLayer.NONE,
-		#     carla.MapLayer.Buildings,
-		#     carla.MapLayer.Decals,
-		#     carla.MapLayer.Foliage,
-		#     carla.MapLayer.Ground,
-		#     carla.MapLayer.ParkedVehicles,
-		#     carla.MapLayer.Particles,
-		#     carla.MapLayer.Props,
-		#     carla.MapLayer.StreetLights,
-		#     carla.MapLayer.Walls,
-		#     carla.MapLayer.All
-		# ]
 
 	def restart(self):
 		self.player_max_speed = 1.3 #1.589
@@ -185,7 +160,8 @@ class World(object):
 		# Set up the sensors.
 		self.gnss_sensor = GnssSensor(self.player)
 		self.imu_sensor = IMUSensor(self.player)
-		self.camera_manager = CameraSensor(self.player, sensor_spec=None)
+		# self.camera_manager = CameraSensor(self.player, sensor_spec=None)
+		self.sensor_manager = SensorManager(self.player)
 		# self.camera_manager.set_sensor(notify=False)
 		actor_type = get_actor_display_name(self.player)
 		self.hud.notification(actor_type)
@@ -229,10 +205,11 @@ class World(object):
 			pass
 
 	def tick(self, clock, frame, display):
-		end = self.hud.tick(self, clock, self.camera_manager, frame, display)
+		# end = self.hud.tick(self, clock, self.camera_manager, frame, display)
+		end = self.hud.tick(self, clock, None, frame, display)
 		return end
 	def render(self, display, frame):
-		image = self.camera_manager.get_data(frame)
+		image = self.sensor_manager.get_data(frame, 'bev')
 		image = image[:, :, :3]
 		image = image[:, :, ::-1]
 
@@ -813,12 +790,12 @@ def init_multi_agent(args, world, planner, agent_list, start_list, dest_list, ro
 			agent_dict['model'] = ego_agent
 			agent_dict['imu'] = IMUSensor(carla_agent)
 			agent_dict['name'] = 'e2e'
-			sensor_spec_list = ego_agent.sensors()
-			for sensor_spec in sensor_spec_list:
-				if sensor_spec['type'].startswith('sensor.camera'):
-					agent_dict['rgb'] = CameraSensor(carla_agent, sensor_spec)
-				if sensor_spec['type'].startswith('sensor.lidar'):
-					agent_dict['lidar'] = LidarSensor(carla_agent, sensor_spec)
+			# sensor_spec_list = ego_agent.sensors()
+			# for sensor_spec in sensor_spec_list:
+			# 	if sensor_spec['type'].startswith('sensor.camera'):
+			# 		agent_dict['rgb'] = CameraSensor(carla_agent, sensor_spec)
+			# 	if sensor_spec['type'].startswith('sensor.lidar'):
+			# 		agent_dict['lidar'] = LidarSensor(carla_agent, sensor_spec)
 			
 			ego_agent_list.append(agent_dict)
 		else:
@@ -911,7 +888,14 @@ def game_loop(args):
 				global_roach_policy = global_roach.init_policy()
 				
 			ego_agent_list, interactive_agent_list = init_multi_agent(args, world.world, planner, scene['agent'], scene['start'], scene['dest'], global_roach_policy)
+			
+			actor_dict = {world.player: None}
+			for ego_agent in ego_agent_list:
+				sensor_spec_list = ego_agent['model'].sensors()
+				actor_dict[ego_agent['agent']] = sensor_spec_list
 
+			world.sensor_manager.setup(actor_dict)
+     
 			while True:
 				clock.tick_busy_loop(30)
 				frame = world.world.tick()
@@ -990,8 +974,8 @@ def game_loop(args):
 														color=carla.Color(r=255, g=0, b=0), life_time=10.0,
 														persistent_lines=True)
 
-						image = agent_dict['rgb'].get_data(frame)
-						print(f"{agent_dict['id']}: {type(image)}")
+						rgb = world.sensor_manager.get_data(frame, agent_dict['id'], 'lidar')
+						print(type(rgb))
 						# tick_data = agent_dict['model'].tick(agent_dict)
 							# inputs = [tick_data, agent_dict]
 

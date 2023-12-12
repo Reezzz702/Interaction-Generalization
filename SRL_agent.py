@@ -146,19 +146,30 @@ class SRLAgent():
     pass
   
   def sensors(self):
+    # sensors = [{
+    #     'type': 'sensor.camera.rgb',
+    #     'x': self.config.camera_pos[0],
+    #     'y': self.config.camera_pos[1],
+    #     'z': self.config.camera_pos[2],
+    #     'roll': self.config.camera_rot_0[0],
+    #     'pitch': self.config.camera_rot_0[1],
+    #     'yaw': self.config.camera_rot_0[2],
+    #     'width': self.config.camera_width,
+    #     'height': self.config.camera_height,
+    #     'fov': self.config.camera_fov,
+    #     'id': 'rgb_front'
+    # }, {
+    #       'type': 'sensor.lidar.ray_cast',
+    #       'x': self.config.lidar_pos[0],
+    #       'y': self.config.lidar_pos[1],
+    #       'z': self.config.lidar_pos[2],
+    #       'roll': self.config.lidar_rot[0],
+    #       'pitch': self.config.lidar_rot[1],
+    #       'yaw': self.config.lidar_rot[2],
+    #       'id': 'lidar'
+    # }]
+
     sensors = [{
-        'type': 'sensor.camera.rgb',
-        'x': self.config.camera_pos[0],
-        'y': self.config.camera_pos[1],
-        'z': self.config.camera_pos[2],
-        'roll': self.config.camera_rot_0[0],
-        'pitch': self.config.camera_rot_0[1],
-        'yaw': self.config.camera_rot_0[2],
-        'width': self.config.camera_width,
-        'height': self.config.camera_height,
-        'fov': self.config.camera_fov,
-        'id': 'rgb_front'
-    }, {
           'type': 'sensor.lidar.ray_cast',
           'x': self.config.lidar_pos[0],
           'y': self.config.lidar_pos[1],

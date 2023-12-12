@@ -31,7 +31,7 @@ class LidarCenterNet(nn.Module):
 		super().__init__()
 		self.config = config
 
-		self.data = CARLA_Data(root=[], config=self.config, shared_dict=None)
+		# self.data = CARLA_Data(root=[], config=self.config, shared_dict=None)
 
 		self.speed_histogram = []
 		self.make_histogram = int(os.environ.get('HISTOGRAM', 0))
