@@ -627,5 +627,8 @@ class BEV_MAP():
             control_elements['steer'] = steer
             control_elements['brake'] = brake
             control_elements_list.append(control_elements)
+        
+        control_elements = control_elements_list[0]
+        control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
 
-        input_data['control'] = control_elements_list
+        input_data['control'] = control

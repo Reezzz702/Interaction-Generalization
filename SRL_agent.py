@@ -24,6 +24,7 @@ import pathlib
 import pickle
 import ujson  # Like json but faster
 import gzip
+from copy import deepcopy
 
 # Configure pytorch for maximum performance
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -31,14 +32,16 @@ torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.allow_tf32 = True
 
-
+def get_entry_point():
+  return 'SRLAgent'
 
 class SRLAgent():
-  def __init__(self, actor, world, path_to_config) -> None:
+  def __init__(self, actor, path_to_config) -> None:
     torch.cuda.empty_cache()
     self.config_path = path_to_config
     self.device = torch.device('cuda:0')
     self.step = 0
+    self.actor = actor
     
     # Load the config saved during training
     with open(os.path.join(self.config_path, 'config.pickle'), 'rb') as args_file:
@@ -169,11 +172,17 @@ class SRLAgent():
     return sensors
   
   @torch.inference_mode()  # Turns off gradient computation
-  def tick(self, input_data):    
+  def tick(self, image, input_data):    
+    location = input_data['agent'].get_location()
+    pos = np.array([location.x, location.y])
+
+    compass = t_u.preprocess_compass(input_data['imu'].compass)
+    speed = self._get_forward_speed()
+    
     rgb = []
     
     if input_data['rgb'] is not None:
-      camera = input_data['rgb'].image[:, :, :3]
+      camera = image[:, :, :3]
 
       # Also add jpg artifacts at test time, because the training data was saved as jpg.
       _, compressed_image_i = cv2.imencode('.jpg', camera)
@@ -187,16 +196,12 @@ class SRLAgent():
       rgb = np.concatenate(rgb, axis=1)
       rgb = torch.from_numpy(rgb).to(self.device, dtype=torch.float32).unsqueeze(0)
 
-    location = input_data['agent'].get_location()
-    pos = np.array([location.x, location.y])
-
-    compass = t_u.preprocess_compass(input_data['imu'].compass)
-    speed = self._get_forward_speed()
 
     result = {
         'rgb': rgb,
         'compass': compass,
     }
+
     result['speed'] = torch.FloatTensor([speed]).to(self.device, dtype=torch.float32)
   
     if input_data['lidar'] is not None:
@@ -237,9 +242,9 @@ class SRLAgent():
     return result
   
   @torch.inference_mode()  # Turns off gradient computation
-  def run_step(self, input_data):
+  def run_step(self, tick_data, input_data):
     self.step += 1
-    tick_data = self.tick(input_data)
+    # tick_data = self.tick(input_data)
     
     if not self.initialized:
       self.initialized = True
@@ -247,7 +252,7 @@ class SRLAgent():
       self.control = control
       if "lidar" in tick_data:
         self.lidar_last = deepcopy(tick_data['lidar'])
-      return control
+      input_data['control'] = control
 
     
     lidar_indices = []
@@ -276,13 +281,13 @@ class SRLAgent():
       tmp_control = carla.VehicleControl(0.0, 0.0, 1.0)
       self.control = tmp_control
 
-      return tmp_control
+      input_data['control'] = tmp_control
 
     # Possible action repeat configuration
     if self.step % self.config.action_repeat == 1:
       self.lidar_last = deepcopy(tick_data['lidar'])
 
-      return self.control
+      input_data['control'] = self.control
 
     # Voxelize LiDAR and stack temporal frames
     lidar_bev = []
@@ -448,8 +453,7 @@ class SRLAgent():
     else:
       self.control = control
 
-    return control
-  
+    input_data['control'] = control  
   
   def _get_forward_speed(self, transform=None, velocity=None):
     """ Convert the vehicle transform directly to forward speed """

@@ -2,11 +2,11 @@
   "available_scenarios": 
   {
     "Town05": [
-        {
-          "agent": ["auto", "roach", "roach"],
-          "start": ["E1", "A1", "B1"],
-          "dest": ["A3", "C3", "E3"]
-        }
+      {
+        "agent": ["ego"],
+        "start": ["E1"],
+        "dest": ["A3"]
+      }
     ]
   }
 }

@@ -108,7 +108,7 @@ def lidar_to_ego_coordinate(config, lidar):
   translation = np.array(config.lidar_pos)
 
   # The double transpose is a trick to compute all the points together.
-  ego_lidar = (rotation_matrix @ lidar[1][:, :3].T).T + translation
+  ego_lidar = (rotation_matrix @ lidar[:, :3].T).T + translation
 
   return ego_lidar
 

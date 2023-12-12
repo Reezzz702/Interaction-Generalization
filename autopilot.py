@@ -133,14 +133,16 @@ class AutoPilot():
     self.brake = brake
     self.target_speed = target_speed
     
-    control_elements_list = []
-    control_elements = {}
-    control_elements['throttle'] = throttle
-    control_elements['steer'] = steer
-    control_elements['brake'] = brake
-    control_elements_list.append(control_elements)
+    # control_elements_list = []
+    # control_elements = {}
+    # control_elements['throttle'] = throttle
+    # control_elements['steer'] = steer
+    # control_elements['brake'] = brake
+    # control_elements_list.append(control_elements)
     
-    input_data['control'] = control_elements_list
+    control = carla.VehicleControl(throttle=throttle, steer=steer, brake=brake)
+
+    input_data['control'] = control
   
   def _get_steer(self, brake,  route, pos, theta, speed, restore=True):
     
