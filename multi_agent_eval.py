@@ -100,6 +100,21 @@ class World(object):
 		self._weather_index = 0
 		self._actor_filter = args.filter
 		self._gamma = args.gamma
+  
+		self.sensor_spec = [{
+				'type': 'sensor.camera.rgb',
+        'x': 29.550,
+        'y': 0.85,
+        'z': 50,
+        'roll': 0,
+        'pitch': -90,
+        'yaw': 0,
+        'width': 512,
+        'height': 512,
+        'fov': 60,
+        'id': 'rgb_center'
+			}]
+  
 		self.restart()
 		self.world.on_tick(hud.on_world_tick)
 		self.recording_enabled = False
@@ -107,6 +122,8 @@ class World(object):
 		self.constant_velocity_enabled = False
 		self.current_map_layer = 0
 		self.surface = None
+
+		
 
 	def restart(self):
 		self.player_max_speed = 1.3 #1.589
@@ -151,7 +168,7 @@ class World(object):
 				sys.exit(1)
 			spawn_points = self.map.get_spawn_points()
 			spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
-			# spawn_point = carla.Transform(carla.Location(x=-188.1, y=18.5))
+			spawn_point = carla.Transform(carla.Location(x=-188.1, y=18.5, z=20))
 			# spawn_point = carla.Transform()
 			
 			self.player = self.world.try_spawn_actor(blueprint, spawn_point)
@@ -162,9 +179,13 @@ class World(object):
 		self.imu_sensor = IMUSensor(self.player)
 		# self.camera_manager = CameraSensor(self.player, sensor_spec=None)
 		self.sensor_manager = SensorManager(self.player)
+		self.sensor_manager.setup(self.sensor_spec)
 		# self.camera_manager.set_sensor(notify=False)
 		actor_type = get_actor_display_name(self.player)
 		self.hud.notification(actor_type)
+
+		actors = self.world.get_actors()
+		# reproduce traffic light state
 
 	def next_weather(self, reverse=False):
 
@@ -209,7 +230,7 @@ class World(object):
 		end = self.hud.tick(self, clock, None, frame, display)
 		return end
 	def render(self, display, frame):
-		image = self.sensor_manager.get_data(frame, 'bev')
+		image = self.sensor_manager.get_data(frame, 'image')
 		image = image[:, :, :3]
 		image = image[:, :, ::-1]
 
@@ -224,13 +245,14 @@ class World(object):
 
 	def destroy(self):        
 		sensors = [
-			self.camera_manager.sensor,
+			# self.camera_manager.sensor,
 			self.gnss_sensor.sensor,
 			self.imu_sensor.sensor]
 		for sensor in sensors:
 			if sensor is not None:
 				sensor.stop()
 				sensor.destroy()
+		self.sensor_manager.destroy()
 		if self.player is not None:
 			self.player.destroy()
 		
@@ -790,7 +812,10 @@ def init_multi_agent(args, world, planner, agent_list, start_list, dest_list, ro
 			agent_dict['model'] = ego_agent
 			agent_dict['imu'] = IMUSensor(carla_agent)
 			agent_dict['name'] = 'e2e'
-			# sensor_spec_list = ego_agent.sensors()
+			sensor_spec_list = ego_agent.sensors()
+			agent_dict['sensors'] = SensorManager(carla_agent)
+			agent_dict['sensors'].setup(sensor_spec_list)
+   
 			# for sensor_spec in sensor_spec_list:
 			# 	if sensor_spec['type'].startswith('sensor.camera'):
 			# 		agent_dict['rgb'] = CameraSensor(carla_agent, sensor_spec)
@@ -889,12 +914,12 @@ def game_loop(args):
 				
 			ego_agent_list, interactive_agent_list = init_multi_agent(args, world.world, planner, scene['agent'], scene['start'], scene['dest'], global_roach_policy)
 			
-			actor_dict = {world.player: None}
-			for ego_agent in ego_agent_list:
-				sensor_spec_list = ego_agent['model'].sensors()
-				actor_dict[ego_agent['agent']] = sensor_spec_list
+			# actor_dict = {world.player: None}
+			# for ego_agent in ego_agent_list:
+			# 	sensor_spec_list = ego_agent['model'].sensors()
+			# 	actor_dict[ego_agent['agent']] = sensor_spec_list
 
-			world.sensor_manager.setup(actor_dict)
+			# world.sensor_manager.setup(actor_dict)
      
 			while True:
 				clock.tick_busy_loop(30)
@@ -974,10 +999,10 @@ def game_loop(args):
 														color=carla.Color(r=255, g=0, b=0), life_time=10.0,
 														persistent_lines=True)
 
-						rgb = world.sensor_manager.get_data(frame, agent_dict['id'], 'lidar')
-						print(type(rgb))
-						# tick_data = agent_dict['model'].tick(agent_dict)
-							# inputs = [tick_data, agent_dict]
+						rgb = agent_dict['sensors'].get_data(frame, 'image')
+						lidar = agent_dict['sensors'].get_data(frame, 'lidar')
+						tick_data = agent_dict['model'].tick(rgb, lidar, agent_dict)
+						inputs = [tick_data, agent_dict]
 
 
 					if agent_dict['name'] == "auto":
@@ -986,23 +1011,24 @@ def game_loop(args):
 							world.world.debug.draw_string(w.transform.location, 'O', draw_shadow=False,
 														color=carla.Color(r=255, g=0, b=0), life_time=10.0,
 														persistent_lines=True)
-						# agent_dict['model'].tick(agent_dict)
+						agent_dict['model'].tick(agent_dict)
 						inputs = [route_list, agent_dict]
 
+					# print(f"run at frame{frame}")
 
-				# 	t = Thread(target=agent_dict['model'].run_step, args=tuple(inputs))
-				# 	t_list.append(t)
-				# 	t.start()
+					t = Thread(target=agent_dict['model'].run_step, args=tuple(inputs))
+					t_list.append(t)
+					t.start()
 				
-				# for t in t_list:
-				# 	t.join()
+				for t in t_list:
+					t.join()
 
-				# start_time = time.time()
-				# for agent_dict in all_agent_list:
-				# 	control = agent_dict["control"] 
-				# 	# control_elements = control_elements_list[0]
-				# 	# control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
-				# 	agent_dict["agent"].apply_control(control)
+				start_time = time.time()
+				for agent_dict in all_agent_list:
+					control = agent_dict["control"] 
+					# control_elements = control_elements_list[0]
+					# control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
+					agent_dict["agent"].apply_control(control)
 
 				world.render(display, frame)
 				
@@ -1024,6 +1050,8 @@ def game_loop(args):
 					if sensor in agent_dict:
 						agent_dict[sensor].sensor.stop()
 						agent_dict[sensor].sensor.destroy()
+				if 'sensors' in agent_dict:
+					agent_dict['sensors'].destroy()
 				
 			del all_agent_list
 			del ego_agent_list

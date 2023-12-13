@@ -13,6 +13,7 @@ import math
 from team_code.model import LidarCenterNet
 from team_code.config import GlobalConfig
 from team_code.nav_planner import RoutePlanner, extrapolate_waypoint_route
+from team_code.data import CARLA_Data
 
 from filterpy.kalman import MerweScaledSigmaPoints
 from filterpy.kalman import UnscentedKalmanFilter as UKF
@@ -141,11 +142,42 @@ class SRLAgent():
     self.lidar_buffer = deque(maxlen=self.config.lidar_seq_len * self.config.data_save_freq)
     self.lidar_last = None
     self.initialized = False
+    control = carla.VehicleControl(steer=0.0, throttle=0.0, brake=1.0)
+    self.control = control
+    
+    self.data = CARLA_Data(root=[], config=self.config, shared_dict=None)
+    direct = os.environ.get('DIRECT', 1)
+    if direct is not None:
+      self.config.inference_direct_controller = int(direct)
+      print('Direct control prediction?: ', direct)
   
   def destroy(self):
     pass
   
   def sensors(self):
+    sensors = [{
+        'type': 'sensor.lidar.ray_cast',
+          'x': self.config.lidar_pos[0],
+          'y': self.config.lidar_pos[1],
+          'z': self.config.lidar_pos[2],
+          'roll': self.config.lidar_rot[0],
+          'pitch': self.config.lidar_rot[1],
+          'yaw': self.config.lidar_rot[2],
+          'id': 'lidar'
+    }, {
+        'type': 'sensor.camera.rgb',
+        'x': self.config.camera_pos[0],
+        'y': self.config.camera_pos[1],
+        'z': self.config.camera_pos[2],
+        'roll': self.config.camera_rot_0[0],
+        'pitch': self.config.camera_rot_0[1],
+        'yaw': self.config.camera_rot_0[2],
+        'width': self.config.camera_width,
+        'height': self.config.camera_height,
+        'fov': self.config.camera_fov,
+        'id': 'rgb_front'
+    }]
+
     # sensors = [{
     #     'type': 'sensor.camera.rgb',
     #     'x': self.config.camera_pos[0],
@@ -158,7 +190,7 @@ class SRLAgent():
     #     'height': self.config.camera_height,
     #     'fov': self.config.camera_fov,
     #     'id': 'rgb_front'
-    # }, {
+    # }]
     #       'type': 'sensor.lidar.ray_cast',
     #       'x': self.config.lidar_pos[0],
     #       'y': self.config.lidar_pos[1],
@@ -169,21 +201,10 @@ class SRLAgent():
     #       'id': 'lidar'
     # }]
 
-    sensors = [{
-          'type': 'sensor.lidar.ray_cast',
-          'x': self.config.lidar_pos[0],
-          'y': self.config.lidar_pos[1],
-          'z': self.config.lidar_pos[2],
-          'roll': self.config.lidar_rot[0],
-          'pitch': self.config.lidar_rot[1],
-          'yaw': self.config.lidar_rot[2],
-          'id': 'lidar'
-    }]
-
     return sensors
   
   @torch.inference_mode()  # Turns off gradient computation
-  def tick(self, image, input_data):    
+  def tick(self, image, lidar, input_data):    
     location = input_data['agent'].get_location()
     pos = np.array([location.x, location.y])
 
@@ -192,7 +213,7 @@ class SRLAgent():
     
     rgb = []
     
-    if input_data['rgb'] is not None:
+    if image is not None:
       camera = image[:, :, :3]
 
       # Also add jpg artifacts at test time, because the training data was saved as jpg.
@@ -215,8 +236,8 @@ class SRLAgent():
 
     result['speed'] = torch.FloatTensor([speed]).to(self.device, dtype=torch.float32)
   
-    if input_data['lidar'] is not None:
-      result['lidar'] = t_u.lidar_to_ego_coordinate(self.config, input_data['lidar'].points)
+    if lidar is not None:
+      result['lidar'] = t_u.lidar_to_ego_coordinate(self.config, lidar)
 
     if not self.filter_initialized:
       self.ukf.x = np.array([pos[0], pos[1], t_u.normalize_angle(compass), speed])
@@ -237,7 +258,8 @@ class SRLAgent():
       target_point, far_command = route_list[1]
     else:
       target_point, far_command = route_list[0]
-
+      
+    target_point = np.array([target_point.transform.location.x, target_point.transform.location.y])
     if (target_point != self.target_point_prev).all():
       self.target_point_prev = target_point
       self.commands.append(far_command.value)
@@ -372,8 +394,8 @@ class SRLAgent():
         pred_checkpoints.append(pred_checkpoint[0][1])
 
 
-    if self.stop_sign_controller:
-      stop_for_stop_sign = self.stop_sign_controller_step(gt_velocity.item())
+    # if self.stop_sign_controller:
+    #   stop_for_stop_sign = self.stop_sign_controller_step(gt_velocity.item())
 
     if self.config.use_wp_gru:
       self.pred_wp = torch.stack(pred_wps, dim=0).mean(dim=0)
@@ -450,10 +472,10 @@ class SRLAgent():
         brake = True
         self.force_move = self.config.creep_duration
 
-    if self.stop_sign_controller:
-      if stop_for_stop_sign:
-        throttle = 0.0
-        brake = True
+    # if self.stop_sign_controller:
+    #   if stop_for_stop_sign:
+    #     throttle = 0.0
+    #     brake = True
 
     control = carla.VehicleControl(steer=float(steer), throttle=float(throttle), brake=float(brake))
 
@@ -479,6 +501,36 @@ class SRLAgent():
     orientation = np.array([np.cos(pitch) * np.cos(yaw), np.cos(pitch) * np.sin(yaw), np.sin(pitch)])
     speed = np.dot(vel_np, orientation)
     return speed
+  
+  def align_lidar(self, lidar, x, y, orientation, x_target, y_target, orientation_target):
+    pos_diff = np.array([x_target, y_target, 0.0]) - np.array([x, y, 0.0])
+    rot_diff = t_u.normalize_angle(orientation_target - orientation)
+
+    # Rotate difference vector from global to local coordinate system.
+    rotation_matrix = np.array([[np.cos(orientation_target), -np.sin(orientation_target), 0.0],
+                                [np.sin(orientation_target),
+                                 np.cos(orientation_target), 0.0], [0.0, 0.0, 1.0]])
+    pos_diff = rotation_matrix.T @ pos_diff
+
+    return t_u.algin_lidar(lidar, pos_diff, rot_diff)
+
+  def update_stop_box(self, boxes, x, y, orientation, x_target, y_target, orientation_target):
+    pos_diff = np.array([x_target, y_target]) - np.array([x, y])
+    rot_diff = t_u.normalize_angle(orientation_target - orientation)
+
+    # Rotate difference vector from global to local coordinate system.
+    rotation_matrix = np.array([[np.cos(orientation_target), -np.sin(orientation_target)],
+                                [np.sin(orientation_target), np.cos(orientation_target)]])
+    pos_diff = rotation_matrix.T @ pos_diff
+
+    # Rotation matrix in local coordinate system
+    local_rot_matrix = np.array([[np.cos(rot_diff), -np.sin(rot_diff)], [np.sin(rot_diff), np.cos(rot_diff)]])
+
+    for _, box_pred in enumerate(boxes):
+      box_pred[:2] = (local_rot_matrix.T @ (box_pred[:2] - pos_diff).T).T
+      box_pred[4] = t_u.normalize_angle(box_pred[4] - rot_diff)
+
+
   
   
   
