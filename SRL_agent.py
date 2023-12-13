@@ -152,7 +152,9 @@ class SRLAgent():
       print('Direct control prediction?: ', direct)
   
   def destroy(self):
-    pass
+    del self.tp_sign_agrees_with_angle
+    del self.nets
+    del self.config
   
   def sensors(self):
     sensors = [{

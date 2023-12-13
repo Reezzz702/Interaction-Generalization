@@ -184,8 +184,10 @@ class World(object):
 		actor_type = get_actor_display_name(self.player)
 		self.hud.notification(actor_type)
 
-		actors = self.world.get_actors()
-		# reproduce traffic light state
+		actors = self.world.get_actors().filter('traffic.traffic_light*')
+		for l in actors:
+			l.set_state(carla.TrafficLightState.Green)
+
 
 	def next_weather(self, reverse=False):
 
@@ -568,149 +570,6 @@ class IMUSensor(object):
 		self.compass = math.degrees(sensor_data.compass)
 
 
-# ==============================================================================
-# -- CameraSensor -----------------------------------------------------------------
-# ==============================================================================
-class CameraSensor(object):
-	def __init__(self, parent_actor, sensor_spec=None):
-		self.sensor = None
-		self.image = None
-		self._parent = parent_actor
-
-		Attachment = carla.AttachmentType
-
-		
-		world = self._parent.get_world()
-		bp_library = world.get_blueprint_library()
-		self.sensors = ['sensor.camera.rgb', cc.Raw, 'Camera RGB']
-
-		if self.sensor is not None:
-			self.sensor.destroy()
-
-		if sensor_spec:
-			self.camera_transform = (carla.Transform(carla.Location(x=sensor_spec['x'], y=sensor_spec['y'], z=sensor_spec['z']), carla.Rotation(roll=sensor_spec['roll'], pitch=sensor_spec['pitch'], yaw=sensor_spec['yaw'])), Attachment.Rigid)	
-
-			self.sensor_rgb_bp = bp_library.find(str(sensor_spec['type']))
-			self.sensor_rgb_bp.set_attribute('image_size_x', str(sensor_spec['width']))
-			self.sensor_rgb_bp.set_attribute('image_size_y', str(sensor_spec['height']))
-			self.sensor_rgb_bp.set_attribute('fov', str(sensor_spec['fov']))
-			self.sensor_rgb_bp.set_attribute('lens_circle_multiplier', str(3.0))
-			self.sensor_rgb_bp.set_attribute('lens_circle_falloff', str(3.0))
-			self.sensor_rgb_bp.set_attribute('chromatic_aberration_intensity', str(0.5))
-			self.sensor_rgb_bp.set_attribute('chromatic_aberration_offset', str(0))
-
-			self.sensor = self._parent.get_world().spawn_actor(
-				self.sensor_rgb_bp,
-				self.camera_transform[0],
-				attach_to=self._parent,
-				attachment_type=self.camera_transform[1]
-			)
-
-		else:
-			self.camera_transform = (carla.Transform(carla.Location(x=assigned_location_dict['center'][0], y=assigned_location_dict['center'][1], z=50), carla.Rotation(pitch=-90, yaw=0)), Attachment.Rigid)
-
-			self.sensor_rgb_bp = bp_library.find('sensor.camera.rgb')
-			self.sensor_rgb_bp.set_attribute('image_size_x', str(512))
-			self.sensor_rgb_bp.set_attribute('image_size_y', str(512))
-			self.sensor_rgb_bp.set_attribute('fov', str(60.0))
-   
-			self.sensor = self._parent.get_world().spawn_actor(
-				self.sensor_rgb_bp,
-				self.camera_transform[0],
-			)
-
-		# We need to pass the lambda a weak reference to self to avoid
-		# circular reference.
-		weak_self = weakref.ref(self)
-
-		self.sensor.listen(lambda image: CameraSensor._parse_image(weak_self, image))
-
-	def get_data(self, frame):
-		while True:
-			if self.image.frame == frame:
-				self.image.convert(self.sensors[1])
-				array = np.frombuffer(self.image.raw_data, dtype=np.dtype("uint8"))
-				array = deepcopy(array)
-				array = np.reshape(array, (self.image.height, self.image.width, 4))		# array = array[:, :, ::-1]
-				return array
-
-	@staticmethod
-	def _parse_image(weak_self, image):
-		self = weak_self()
-		if not self:
-			return
-		
-		# image.convert(self.sensors[1])
-		# array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
-		# array = deepcopy(array)
-		# array = np.reshape(array, (image.height, image.width, 4))		# array = array[:, :, ::-1]
-		self.image = image
-	
-
-# ==============================================================================
-# -- LidarSensor -----------------------------------------------------------------
-# ==============================================================================
-class LidarSensor(object):
-	def __init__(self, parent_actor, sensor_spec):
-		self.sensor = None
-		self.points = None
-		self._parent = parent_actor
-
-		Attachment = carla.AttachmentType
-
-		self.lidar_transform = (carla.Transform(carla.Location(x=0.0, y=0.0, z=2.5), carla.Rotation(roll=0.0, pitch=0.0, yaw=-90.0)), Attachment.Rigid)
-		
-		world = self._parent.get_world()
-		bp_library = world.get_blueprint_library()
-
-		self.sensor_lidar_bp = bp_library.find(str(sensor_spec['type']))
-		self.sensor_lidar_bp.set_attribute('range', str(85))
-		self.sensor_lidar_bp.set_attribute('rotation_frequency', str(10))
-		self.sensor_lidar_bp.set_attribute('channels', str(64))
-		self.sensor_lidar_bp.set_attribute('upper_fov', str(10))
-		self.sensor_lidar_bp.set_attribute('lower_fov', str(-30))
-		self.sensor_lidar_bp.set_attribute('points_per_second', str(600000))
-		self.sensor_lidar_bp.set_attribute('atmosphere_attenuation_rate', str(0.004))
-		self.sensor_lidar_bp.set_attribute('dropoff_general_rate', str(0.45))
-		self.sensor_lidar_bp.set_attribute('dropoff_intensity_limit', str(0.8))
-		self.sensor_lidar_bp.set_attribute('dropoff_zero_intensity', str(0.4))
-
-		if self.sensor is not None:
-			self.sensor.destroy()
-
-		self.sensor = self._parent.get_world().spawn_actor(
-			self.sensor_lidar_bp,
-			self.lidar_transform[0],
-			attach_to=self._parent,
-			attachment_type=self.lidar_transform[1]
-		)
-
-		# We need to pass the lambda a weak reference to self to avoid
-		# circular reference.
-		weak_self = weakref.ref(self)
-
-		self.sensor.listen(lambda lidar: LidarSensor._parse_lidar(weak_self, lidar))
-  
-	def get_data(self, frame):
-		while True:
-			if self.points.frame == frame:
-				points = np.frombuffer(self.points.raw_data, dtype=np.dtype('f4'))
-				points = deepcopy(points)
-				points = np.reshape(points, (int(points.shape[0] / 4), 4))
-				return points
-  
-	@staticmethod
-	def _parse_lidar(weak_self, lidar):
-		self = weak_self()
-		if not self:
-			return
-		
-		# points = np.frombuffer(lidar.raw_data, dtype=np.dtype('f4'))
-		# points = deepcopy(points)
-		# points = np.reshape(points, (int(points.shape[0] / 4), 4))
-		self.points = lidar
-
-
 			
 def get_actor_blueprints(world, filter, generation):
 	bps = world.get_blueprint_library().filter(filter)
@@ -738,15 +597,6 @@ def get_actor_blueprints(world, filter, generation):
 		
 
 def check_close(ev_loc, loc0, distance = 3):
-	# ev_location = self.vehicle.get_location()
-	# closest_idx = 0
-
-	# for i in range(len(self._global_route)-1):
-	#     if i > windows_size:
-	#         break
-
-	#     loc0 = self._global_route[i][0].transform.location
-	#     loc1 = self._global_route[i+1][0].transform.location
 	if ev_loc.distance(loc0) < distance:
 		return True
 
@@ -756,6 +606,7 @@ def init_multi_agent(args, world, planner, agent_list, start_list, dest_list, ro
 
 	ego_agent_list = []
 	interactive_agent_list = []
+
 	for i, agent in enumerate(agent_list):
 		agent_dict = {}
 		spawn_trans = carla.Transform(carla.Location(assigned_location_dict[start_list[i]][0], assigned_location_dict[start_list[i]][1]))
@@ -800,8 +651,8 @@ def init_multi_agent(args, world, planner, agent_list, start_list, dest_list, ro
 		except:
 			print("Spawn failed because of collision at spawn position")
 
+  
 		if agent == "ego":
-			# TODO
 			# Load agent
 			module_name = os.path.basename(args.ego_agent).split('.')[0]
 			sys.path.insert(0, os.path.dirname(args.ego_agent))
@@ -913,13 +764,6 @@ def game_loop(args):
 				global_roach_policy = global_roach.init_policy()
 				
 			ego_agent_list, interactive_agent_list = init_multi_agent(args, world.world, planner, scene['agent'], scene['start'], scene['dest'], global_roach_policy)
-			
-			# actor_dict = {world.player: None}
-			# for ego_agent in ego_agent_list:
-			# 	sensor_spec_list = ego_agent['model'].sensors()
-			# 	actor_dict[ego_agent['agent']] = sensor_spec_list
-
-			# world.sensor_manager.setup(actor_dict)
      
 			while True:
 				clock.tick_busy_loop(30)
@@ -972,12 +816,6 @@ def game_loop(args):
 							agent_dict['route'] = planner.trace_route(agent_dict['agent'].get_location(), new_destination)
 
 
-				#############################################################
-				# TODO: Need to prepare input for e2e driving model -> tick()
-				#                                                           #
-				#                                                           #
-				#                                                           #
-				#############################################################
 				t_list = []
 				all_agent_list = interactive_agent_list + ego_agent_list
 				for agent_dict in all_agent_list:
@@ -992,7 +830,6 @@ def game_loop(args):
 						agent_dict['model'].set_data(processed_data)
 					
 					if agent_dict['name'] == 'e2e':
-						# TODO: Prepare sensor data -> tick()
 						route_list = [wp for wp in agent_dict['route'][0:60]]					
 						for w, _ in route_list:
 							world.world.debug.draw_string(w.transform.location, 'O', draw_shadow=False,
@@ -1132,7 +969,6 @@ def main():
 		'--agent_config',
 		type=str,
 		help='path to ego agent config')
-	# TODO: change to agent entry_point later.
 	args = argparser.parse_args()
 
 	args.width, args.height = [int(x) for x in args.res.split('x')]
