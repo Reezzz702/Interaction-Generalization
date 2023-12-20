@@ -107,7 +107,8 @@ class SensorManager(object):
 	def destroy(self):
 		self.sensor_instance_rgb.destroy()
 		if self.use_lidar:
-			self.sensor_instance_lidar.destroy()	
+			self.sensor_instance_lidar.destroy()
+		del self.data
   
 	def get_data(self, frame, sensor_id=None):
 		while True:
@@ -127,8 +128,7 @@ class SensorManager(object):
 			points = np.frombuffer(self.data[sensor_id].raw_data, dtype=np.dtype('f4'))
 			points = deepcopy(points)
 			points = np.reshape(points, (int(points.shape[0] / 4), 4))
-			return points
-						
+			return points			
 
 	@staticmethod
 	def _parse_data(weak_self, data, sensor_id):
@@ -140,7 +140,58 @@ class SensorManager(object):
 			self.data['image'] = data	
 		if sensor_id == 'lidar':
 			self.data['lidar'] = data
-  	# image.convert(self.sensors[1])
-		# array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
-		# array = deepcopy(array)
-		# array = np.reshape(array, (image.height, image.width, 4))		# array = array[:, :, ::-1]
+
+
+# ==============================================================================
+# -- CollisionSensor -----------------------------------------------------------
+# ==============================================================================
+class CollisionSensor(object):
+	def __init__(self, parent_actor):
+		self.sensor = None
+		self.history = []
+		self._parent = parent_actor
+		# self.hud = hud
+		self.other_actor_id = 0  # init as 0 for static object
+		self.other_actor_ids = []  # init as 0 for static object
+		self.wrong_collision = False
+
+		self.true_collision = False
+		world = self._parent.get_world()
+		bp = world.get_blueprint_library().find('sensor.other.collision')
+		self.sensor = world.spawn_actor(
+				bp, carla.Transform(), attach_to=self._parent)
+		# We need to pass the lambda a weak reference to self to avoid circular
+		# reference.
+		weak_self = weakref.ref(self)
+		self.sensor.listen(
+				lambda event: CollisionSensor._on_collision(weak_self, event))
+		self.collision = False
+
+		self.collision_actor_id = None
+		self.collision_actor_type = None
+
+	@staticmethod
+	def _on_collision(weak_self, event):
+		self = weak_self()
+		if not self:
+			return
+		actor_type = get_actor_display_name(event.other_actor)
+		# self.hud.notification('Collision with %r' % actor_type)
+		# impulse = event.normal_impulse
+		# intensity = math.sqrt(impulse.x**2 + impulse.y**2 + impulse.z**2)
+		# dict: {data1, data2}
+		# data = frame: {timestamp, other_actor's id, intensity}
+		self.history.append(
+			{'frame': event.frame, 'actor_id': event.other_actor.id})
+		# if len(self.history) > 4000:
+		#     self.history.pop(0)
+		self.collision = True
+		self.collision_actor_id = event.other_actor.id
+		self.collision_actor_type = actor_type
+
+		if event.other_actor.id in self.other_actor_ids:
+			self.true_collision = True
+		if event.other_actor.id == self.other_actor_id: 
+			self.true_collision = True
+		if event.other_actor.id != self.other_actor_id:
+			self.wrong_collision = True

@@ -88,6 +88,8 @@ class AutoPilot():
     del self._turn_controller_extrapolation
     del self._speed_controller
     del self._speed_controller_extrapolation
+    del self.actor
+    del self._world
 
   def tick(self, input_data):
     compass = t_u.preprocess_compass(input_data['imu'].compass)
