@@ -3,9 +3,9 @@
   {
     "Town05": [
       {
-        "agent": ["roach"],
-        "start": ["E1"],
-        "dest": ["A3"]
+        "agent": ["ego", "auto"],
+        "start": ["E1", "B1"],
+        "dest": ["A3", "E3"]
       }
     ]
   }
