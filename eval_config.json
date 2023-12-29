@@ -3,9 +3,19 @@
   {
     "Town05": [
       {
-        "agent": ["ego", "auto"],
-        "start": ["E1", "B1"],
-        "dest": ["A3", "E3"]
+        "agent": ["ego", "roach", "ego"],
+        "start": ["E1", "B1", "A1"],
+        "dest": ["A3", "E3", "C3"]
+      },
+      {
+        "agent": ["auto"],
+        "start": ["E1"],
+        "dest": ["A3"]
+      },
+      {
+        "agent": ["auto"],
+        "start": ["E1"],
+        "dest": ["A3"]
       }
     ]
   }

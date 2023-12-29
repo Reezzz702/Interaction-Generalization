@@ -41,6 +41,7 @@ import math
 import pygame
 import random
 import re
+import time
 
 from autopilot import AutoPilot
 from agents.navigation.global_route_planner import GlobalRoutePlanner
@@ -72,6 +73,8 @@ class World(object):
 		settings.synchronous_mode = True  # Enables synchronous mode
 		self.world.apply_settings(settings)
 		self.actor_role_name = args.rolename
+		
+
 		try:
 			self.map = self.world.get_map()
 		except RuntimeError as error:
@@ -79,6 +82,17 @@ class World(object):
 			print('  The server could not send the OpenDRIVE (.xodr) file:')
 			print('  Make sure it exists, has the same name of your town, and is correct.')
 			sys.exit(1)
+
+		self.world.unload_map_layer(carla.MapLayer.Buildings)     
+		self.world.unload_map_layer(carla.MapLayer.Decals)     
+		self.world.unload_map_layer(carla.MapLayer.Foliage)     
+		self.world.unload_map_layer(carla.MapLayer.Ground)     
+		self.world.unload_map_layer(carla.MapLayer.ParkedVehicles)         
+		self.world.unload_map_layer(carla.MapLayer.Particles)     
+		self.world.unload_map_layer(carla.MapLayer.Props)     
+		self.world.unload_map_layer(carla.MapLayer.StreetLights)     
+		self.world.unload_map_layer(carla.MapLayer.Walls)     
+
 			
 		self.hud = hud
 		self.player = None
@@ -163,67 +177,33 @@ class World(object):
 			self.player = self.world.try_spawn_actor(blueprint, spawn_point)
 			self.show_vehicle_telemetry = False
 			self.modify_vehicle_physics(self.player)
+   
 		# Set up the sensors.
-		self.gnss_sensor = GnssSensor(self.player)
-		self.imu_sensor = IMUSensor(self.player)
-		self.sensor_manager = SensorManager(self.player)
-		self.sensor_manager.setup(self.sensor_spec)
-		actor_type = get_actor_display_name(self.player)
-		self.hud.notification(actor_type)
+		self.sensor_manager = SensorManager(self.player, self.sensor_spec)
 
 		actors = self.world.get_actors().filter('traffic.traffic_light*')
 		for l in actors:
 			l.set_state(carla.TrafficLightState.Green)
 
-
-	def next_weather(self, reverse=False):
-
-		self._weather_index += -1 if reverse else 1
-		self._weather_index %= len(self._weather_presets)
-		preset = self._weather_presets[self._weather_index]
-		# print(preset[1])
-		while ('Night' in preset[1]):
-			self._weather_index += -1 if reverse else 1
-			self._weather_index %= len(self._weather_presets)
-			preset = self._weather_presets[self._weather_index]
-			# print(preset[1])
-		self.hud.notification('Weather: %s' % preset[1])
-		self.player.get_world().set_weather(preset[0])
-
-	def next_map_layer(self, reverse=False):
-		self.current_map_layer += -1 if reverse else 1
-		self.current_map_layer %= len(self.map_layer_names)
-		selected = self.map_layer_names[self.current_map_layer]
-		self.hud.notification('LayerMap selected: %s' % selected)
-
-	def load_map_layer(self, unload=False):
-		selected = self.map_layer_names[self.current_map_layer]
-		if unload:
-			self.hud.notification('Unloading map layer: %s' % selected)
-			self.world.unload_map_layer(selected)
-		else:
-			self.hud.notification('Loading map layer: %s' % selected)
-			self.world.load_map_layer(selected)
-
 	def modify_vehicle_physics(self, actor):
 		#If actor is not a vehicle, we cannot use the physics control
-		try:
+		try: 
 			physics_control = actor.get_physics_control()
 			physics_control.use_sweep_wheel_collision = True
 			actor.apply_physics_control(physics_control)
 		except Exception:
 			pass
-
+  
 	def tick(self, clock, frame, display):
-		# end = self.hud.tick(self, clock, self.camera_manager, frame, display)
 		end = self.hud.tick(self, clock, None, frame, display)
 		return end
+
 	def render(self, display, frame):
 		image = self.sensor_manager.get_data(frame, 'image')
 		image = image[:, :, :3]
 		image = image[:, :, ::-1]
 
-			# render the view shown in monitor
+		# render the view shown in monitor
 		self.surface = pygame.surfarray.make_surface(image.swapaxes(0, 1))
 		if self.surface is not None:
 				display.blit(self.surface, (0, 0))
@@ -232,13 +212,13 @@ class World(object):
 		pass
 
 	def destroy(self):        
-		sensors = [
-			self.gnss_sensor.sensor,
-			self.imu_sensor.sensor]
-		for sensor in sensors:
-			if sensor is not None:
-				sensor.stop()
-				sensor.destroy()
+		# sensors = [
+		# 	self.gnss_sensor.sensor,
+		# 	self.imu_sensor.sensor]
+		# for sensor in sensors:
+		# 	if sensor is not None:
+		# 		sensor.stop()
+		# 		sensor.destroy()
 		self.sensor_manager.destroy()
 		if self.player is not None:
 			self.player.destroy()
@@ -262,7 +242,7 @@ class HUD(object):
 		self.server_fps = 0
 		self.frame = 0
 		self.simulation_time = 0
-		self._show_info = True
+		self._show_info = False
 		self._info_text = []
 		self._server_clock = pygame.time.Clock()
 		self.recording = False
@@ -305,27 +285,6 @@ class HUD(object):
 		self.server_avg_fps = 0.98 * self.server_avg_fps + 0.02 * self.server_fps
 		self.frame = timestamp.frame
 		self.simulation_time = timestamp.elapsed_seconds
-
-	def save_ego_data(self, path):
-		with open(os.path.join(path, 'ego_data.json'), 'w') as f:
-			json.dump(self.ego_data, f, indent=4)
-		self.ego_data = {}
-
-	def record_speed_control_transform(self, world, frame):
-		v = world.player.get_velocity()
-		c = world.player.get_control()
-		t = world.player.get_transform()
-		if frame not in self.ego_data:
-			self.ego_data[frame] = {}
-		self.ego_data[frame]['speed'] = {'constant': math.sqrt(v.x**2 + v.y**2 + v.z**2),
-										 'x': v.x, 'y': v.y, 'z': v.z}
-		self.ego_data[frame]['control'] = {'throttle': c.throttle, 'steer': c.steer,
-											 'brake': c.brake, 'hand_brake': c.hand_brake,
-											 'manual_gear_shift': c.manual_gear_shift,
-											 'gear': c.gear}
-		self.ego_data[frame]['transform'] = {'x': t.location.x, 'y': t.location.y, 'z': t.location.z,
-											 'pitch': t.rotation.pitch, 'yaw': t.rotation.yaw, 'roll': t.rotation.roll}
-
 	
 											 
 	def tick(self, world, clock, camera, frame, display):
@@ -342,8 +301,6 @@ class HUD(object):
 		heading += 'S' if 90.5 < compass < 269.5 else ''
 		heading += 'E' if 0.5 < compass < 179.5 else ''
 		heading += 'W' if 180.5 < compass < 359.5 else ''
-		vehicles = world.world.get_actors().filter('vehicle.*')
-		peds = world.world.get_actors().filter('walker.pedestrian.*')
 		self._info_text = [
 			'Server:  % 16.0f FPS' % self.server_fps,
 			'Client:  % 16.0f FPS' % clock.get_fps(),
@@ -397,44 +354,6 @@ class HUD(object):
 	def error(self, text):
 		pass
 		# self._notifications.set_text('Error: %s' % text, (255, 0, 0))
-
-	def render(self, display):
-		if self._show_info:
-			info_surface = pygame.Surface((220, self.dim[1]))
-			info_surface.set_alpha(100)
-			display.blit(info_surface, (0, 0))
-			v_offset = 4
-			bar_h_offset = 100
-			bar_width = 106
-			for item in self._info_text:
-				if v_offset + 18 > self.dim[1]:
-					break
-				if isinstance(item, list):
-					if len(item) > 1:
-						points = [(x + 8, v_offset + 8 + (1.0 - y) * 30) for x, y in enumerate(item)]
-						pygame.draw.lines(display, (255, 136, 0), False, points, 2)
-					item = None
-					v_offset += 18
-				elif isinstance(item, tuple):
-					if isinstance(item[1], bool):
-						rect = pygame.Rect((bar_h_offset, v_offset + 8), (6, 6))
-						pygame.draw.rect(display, (255, 255, 255), rect, 0 if item[1] else 1)
-					else:
-						rect_border = pygame.Rect((bar_h_offset, v_offset + 8), (bar_width, 6))
-						pygame.draw.rect(display, (255, 255, 255), rect_border, 1)
-						f = (item[1] - item[2]) / (item[3] - item[2])
-						if item[2] < 0.0:
-							rect = pygame.Rect((bar_h_offset + f * (bar_width - 6), v_offset + 8), (6, 6))
-						else:
-							rect = pygame.Rect((bar_h_offset, v_offset + 8), (f * bar_width, 6))
-						pygame.draw.rect(display, (255, 255, 255), rect)
-					item = item[0]
-				if item:  # At this point has to be a str.
-					surface = self._font_mono.render(item, True, (255, 255, 255))
-					display.blit(surface, (8, v_offset))
-				v_offset += 18
-		# self._notifications.render(display)
-		# self.help.render(display)
 
 
 # ==============================================================================
@@ -585,8 +504,8 @@ def init_multi_agent(args, world, planner, agent_list, start_list, dest_list, ro
 			agent_dict['imu'] = IMUSensor(carla_agent)
 			agent_dict['name'] = 'e2e'
 			sensor_spec_list = ego_agent.sensors()
-			agent_dict['sensors'] = SensorManager(carla_agent)
-			agent_dict['sensors'].setup(sensor_spec_list)
+			agent_dict['sensors'] = SensorManager(carla_agent, sensor_spec_list)
+			# agent_dict['sensors'].setup(sensor_spec_list)
 			agent_dict['collision'] = CollisionSensor(carla_agent)
 			ego_agent_list.append(agent_dict)
 		else:
@@ -639,7 +558,11 @@ def game_loop(args):
 	sensor_types = ['imu', 'gnss', 'collision']
 	for town, scenarios in eval_config["available_scenarios"].items():
 		for scene in scenarios:
+			scenario_index += 1
+			logging.info(f'Running scenario {scenario_index} at {town}')
+
 			client = carla.Client(args.host, args.port)
+			client.reload_world()
 			client.set_timeout(10.0)
 
 			# Initialize pygame
@@ -651,17 +574,15 @@ def game_loop(args):
 			display.fill((0,0,0))
 			pygame.display.flip()
 			
-			scenario_index += 1
-			logging.info(f'Running scenario {scenario_index} at {town}')
 			hud = HUD(args.width, args.height, args.distance, town)
 			world = World(client.load_world(town), hud, args)
 			avg_FPS = 0
 			clock = pygame.time.Clock()
 
-			settings = world.world.get_settings()
-			settings.fixed_delta_seconds = 0.05
-			settings.synchronous_mode = True  # Enables synchronous mode
-			world.world.apply_settings(settings)
+			# settings = world.world.get_settings()
+			# settings.fixed_delta_seconds = 0.05
+			# settings.synchronous_mode = True  # Enables synchronous mode
+			# world.world.apply_settings(settings)
 
 			# spawn other agent 
 			map = world.world.get_map()
@@ -678,7 +599,6 @@ def game_loop(args):
 				
 			ego_agent_list, interactive_agent_list = init_multi_agent(args, world.world, planner, scene['agent'], scene['start'], scene['dest'], global_roach_policy)
 			start_frame = None
-			last_frame = None
 			while True:
 				clock.tick_busy_loop(30)
 				frame = world.world.tick()
@@ -769,7 +689,6 @@ def game_loop(args):
 						agent_dict['model'].tick(agent_dict)
 						inputs = [route_list, agent_dict]
 
-					# print(f"run at frame{frame}")
 
 					t = Thread(target=agent_dict['model'].run_step, args=tuple(inputs))
 					t_list.append(t)
@@ -780,8 +699,6 @@ def game_loop(args):
 
 				for agent_dict in all_agent_list:
 					control = agent_dict["control"] 
-					# control_elements = control_elements_list[0]
-					# control = carla.VehicleControl(throttle=control_elements['throttle'], steer=control_elements['steer'], brake=control_elements['brake'])
 					agent_dict["agent"].apply_control(control)
 
 				world.render(display, frame)
@@ -793,46 +710,43 @@ def game_loop(args):
 					scene_done = scene_done and agent_dict['done']
 				if scene_done:
 					fps = (frame - start_frame)/hud.simulation_time
+					finish_time = hud.simulation_time
 					break
 				
-				if hud.simulation_time > 15:
-					logging.info('simulation timeout after 15 second')
+				if hud.simulation_time > 30:
+					logging.info('simulation timeout after 30 second')
 					fps = (frame - start_frame)/hud.simulation_time
+					finish_time = hud.simulation_time
 					break
 			
-			# logging.debug(f"Elapsed frames {last_frame - start_frame}")
-			# logging.debug(f"Avg FPS: {avg_FPS}")
-			# logging.debug(f"Calculated elapsed seconds {(last_frame - start_frame)/avg_FPS}")
-			# logging.debug(f"Server FPS: {hud.server_fps}")
-			# logging.debug(f"Server elapsed seconds: {hud.simulation_time}")
-			# logging.debug(f"Server Avg FPS: {hud.server_avg_fps}")
 			logging.debug(f"FPS: {fps}")
    
 			for agent_dict in ego_agent_list:
 				id_record = {}
 				collision_count = 0
+
+				# TEST CASE
+				# agent_dict['collision'].frame_history.append(frame + int(fps)+5)
+				# agent_dict['collision'].id_history[-1].append(1)
+				# agent_dict['collision'].id_history.append(agent_dict['collision'].id_history[-1])
+				
 				for idx, frame in enumerate(agent_dict['collision'].frame_history):
 					ids = agent_dict['collision'].id_history[idx]
 					for id in ids:
-						if id in id_record:
-							if (frame - id_record[id])/fps > 1:
-								collision_count += 1
-        
+						if id in id_record and (frame - id_record[id])/fps > 1:
+							collision_count += 1
 						id_record[id] = frame
 				collision_count += len(id_record)
 
 				logging.debug(f"Collisions: {collision_count}")
-			
+    
+			logging.info(f"Simulation time: {finish_time}")			
 			logging.info("Destroy env")
-			# Destroy all agent, world and HUD
-			# settings = world.world.get_settings()
-			# settings.synchronous_mode = False 
-			# world.world.apply_settings(settings)
 			
 			for agent_dict in all_agent_list:
 				for sensor in sensor_types:
 					if sensor in agent_dict:
-						logging.info(f"Destroying {sensor} of {agent_dict['id']}")
+						logging.debug(f"Destroying {sensor} of {agent_dict['id']}")
 						agent_dict[sensor].sensor.stop()
 						agent_dict[sensor].sensor.destroy()
 				if 'sensors' in agent_dict:
@@ -853,6 +767,8 @@ def game_loop(args):
 			del global_roach_policy
 			
 			pygame.quit()
+			logging.debug(f"Finish scenario{scenario_index}")
+			# time.sleep(3)
      
 				
 
@@ -912,21 +828,26 @@ def main():
 		'--eval_config',
 		default='eval_config.json',
 		type=str,
-		help='path to evaluation config')
+		help='Path to evaluation config')
 	argparser.add_argument(
 		'--ego_agent',
 		default='roach',
 		type=str,
-		help='select ego agent type')
+		help='Path ego agent entry')
 	argparser.add_argument(
 		'--agent_config',
 		type=str,
-		help='path to ego agent config')
+		help='Path to ego agent config')
 	argparser.add_argument(
    	'--debug',
 		default=False,
 		type=bool,
 		help='visualize debug information')
+	argparser.add_argument(
+   	'--checkpoints',
+		default='results.json',
+		type=str,
+		help='Path to checkpoint used for saving statistics and resuming')
 	args = argparser.parse_args()
 
 	args.width, args.height = [int(x) for x in args.res.split('x')]

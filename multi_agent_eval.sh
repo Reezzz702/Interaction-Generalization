@@ -12,7 +12,7 @@ export AGENT_CONFIG=${WORKDIR}/checkpoints/tfpp_wp
 export DIRECT=0
 
 killall -9 -r CarlaUE4-Linux 
-bash ${CARLA_ROOT}/CarlaUE4.sh -quality-level=Low &
+bash ${CARLA_ROOT}/CarlaUE4.sh &
 
 sleep 5
 
@@ -20,8 +20,7 @@ python multi_agent_eval.py \
 --ego_agent=${EGO_AGNET} \
 --agent_config=${AGENT_CONFIG}
 
+sleep 5
 
-# A0(error), A1, A6
-# B3, B7, B8
 
-# press g to 
+killall -9 -r CarlaUE4-Linux 

@@ -34,23 +34,23 @@ def get_actor_display_name(actor, truncate=250):
 # -- CameraSensor -----------------------------------------------------------------
 # ==============================================================================
 class SensorManager(object):
-	def __init__(self, parent_actor):
+	def __init__(self, parent_actor, sensor_spec_list):
 		self._parent = parent_actor
 		self.id = parent_actor.id
-		self.world = parent_actor.get_world()
-		self.bp_library = self.world.get_blueprint_library()
-		self.Attachment = carla.AttachmentType
+		world = parent_actor.get_world()
+
+		bp_library = world.get_blueprint_library()
+		Attachment = carla.AttachmentType
 
 		self.sensors_dict = {}
 		self.data = {}
 		self.use_lidar = False
 
-	def setup(self, sensor_spec_list):		
 		for sensor_spec in sensor_spec_list:
-			sensor_transform = (carla.Transform(carla.Location(x=sensor_spec['x'], y=sensor_spec['y'], z=sensor_spec['z']), carla.Rotation(roll=sensor_spec['roll'], pitch=sensor_spec['pitch'], yaw=sensor_spec['yaw'])), self.Attachment.Rigid)	
+			sensor_transform = (carla.Transform(carla.Location(x=sensor_spec['x'], y=sensor_spec['y'], z=sensor_spec['z']), carla.Rotation(roll=sensor_spec['roll'], pitch=sensor_spec['pitch'], yaw=sensor_spec['yaw'])), Attachment.Rigid)	
 			sensor_id = sensor_spec['id']
 			if sensor_spec['type'].startswith('sensor.camera'):
-				sensor_rgb_bp = self.bp_library.find(str(sensor_spec['type']))
+				sensor_rgb_bp = bp_library.find(str(sensor_spec['type']))
 				sensor_rgb_bp.set_attribute('image_size_x', str(sensor_spec['width']))
 				sensor_rgb_bp.set_attribute('image_size_y', str(sensor_spec['height']))
 				sensor_rgb_bp.set_attribute('fov', str(sensor_spec['fov']))
@@ -59,12 +59,12 @@ class SensorManager(object):
 				sensor_rgb_bp.set_attribute('chromatic_aberration_intensity', str(0.5))
 				sensor_rgb_bp.set_attribute('chromatic_aberration_offset', str(0))
 				if sensor_id.startswith("rgb_center"):
-					self.sensor_instance_rgb = self.world.spawn_actor(
+					self.sensor_instance_rgb = world.spawn_actor(
 					sensor_rgb_bp,
 					sensor_transform[0],
 				)
 				else:
-					self.sensor_instance_rgb = self.world.spawn_actor(
+					self.sensor_instance_rgb = world.spawn_actor(
 					sensor_rgb_bp,
 					sensor_transform[0],
 					attach_to=self._parent,
@@ -76,7 +76,7 @@ class SensorManager(object):
     
 			if sensor_spec['type'].startswith('sensor.lidar'):
 				self.use_lidar = True
-				sensor_lidar_bp = self.bp_library.find(str(sensor_spec['type']))
+				sensor_lidar_bp = bp_library.find(str(sensor_spec['type']))
 				sensor_lidar_bp.set_attribute('range', str(85))
 				sensor_lidar_bp.set_attribute('rotation_frequency', str(10))
 				sensor_lidar_bp.set_attribute('channels', str(64))
@@ -88,7 +88,7 @@ class SensorManager(object):
 				sensor_lidar_bp.set_attribute('dropoff_intensity_limit', str(0.8))
 				sensor_lidar_bp.set_attribute('dropoff_zero_intensity', str(0.4))
 
-				self.sensor_instance_lidar = self.world.spawn_actor(
+				self.sensor_instance_lidar = world.spawn_actor(
 					sensor_lidar_bp,
 					sensor_transform[0],
 					attach_to=self._parent,
@@ -119,7 +119,7 @@ class SensorManager(object):
 	def get_data(self, frame, sensor_id=None):
 		while True:
 			if not self.data[sensor_id]:
-				print(f'wait for {self.id} {sensor_id} sensor at frame {frame}')
+				# print(f'wait for {self.id} {sensor_id} sensor at frame {frame}')
 				continue
 			if self.data[sensor_id].frame == frame:
 				break
