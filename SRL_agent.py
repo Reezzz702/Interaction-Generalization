@@ -207,7 +207,7 @@ class SRLAgent():
   
   @torch.inference_mode()  # Turns off gradient computation
   def tick(self, image, lidar, input_data):    
-    location = input_data['agent'].get_location()
+    location = self.actor.get_location()
     pos = np.array([location.x, location.y])
 
     compass = np.deg2rad(self.actor.get_transform().rotation.yaw)
