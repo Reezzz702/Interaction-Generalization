@@ -8,7 +8,7 @@ import math
 import numpy as np
 import carla
 
-from collections import deque, defaultdict
+from collections import defaultdict
 from team_code.config import GlobalConfig
 import team_code.transfuser_utils as t_u
 from team_code.nav_planner import RoutePlanner, PIDController
@@ -92,7 +92,7 @@ class AutoPilot():
     del self._world
 
   def tick(self, input_data):
-    compass = t_u.preprocess_compass(input_data['imu'].compass)
+    compass = np.deg2rad(self.actor.get_transform().rotation.yaw)
     input_data['compass'] = compass
     input_data['speed'] = self._get_forward_speed()
 

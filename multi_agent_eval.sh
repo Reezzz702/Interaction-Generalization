@@ -22,5 +22,6 @@ python multi_agent_eval.py \
 
 sleep 5
 
-
 killall -9 -r CarlaUE4-Linux 
+
+sleep 5

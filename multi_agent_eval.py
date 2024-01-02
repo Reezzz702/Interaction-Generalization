@@ -501,7 +501,6 @@ def init_multi_agent(args, world, planner, agent_list, start_list, dest_list, ro
 			ego_agent = getattr(module_agent, agent_class_name)(actor=carla_agent, path_to_config=args.agent_config)
    
 			agent_dict['model'] = ego_agent
-			agent_dict['imu'] = IMUSensor(carla_agent)
 			agent_dict['name'] = 'e2e'
 			sensor_spec_list = ego_agent.sensors()
 			agent_dict['sensors'] = SensorManager(carla_agent, sensor_spec_list)
@@ -517,7 +516,6 @@ def init_multi_agent(args, world, planner, agent_list, start_list, dest_list, ro
 				agent_dict['model'] = roach_agent
 				agent_dict['name'] = agent
 			if agent == "auto":
-				agent_dict['imu'] = IMUSensor(carla_agent)
 				auto_agent = AutoPilot(carla_agent, world, route)
 				agent_dict['model'] = auto_agent   
 				agent_dict['name'] = 'auto' 
@@ -796,10 +794,6 @@ def main():
 		type=int,
 		help='TCP port to listen to (default: 2000)')
 	argparser.add_argument(
-		'-a', '--autopilot',
-		action='store_true',
-		help='enable autopilot')
-	argparser.add_argument(
 		'--res',
 		metavar='WIDTHxHEIGHT',
 		default='512x512',
@@ -853,7 +847,7 @@ def main():
 	args.width, args.height = [int(x) for x in args.res.split('x')]
 
 	# log_level = logging.DEBUG if args.debug else logging.INFO
-	log_level = logging.DEBUG
+	log_level = logging.INFO
 	logging.basicConfig(format='%(levelname)s: %(message)s', level=log_level)
 
 	logging.info('listening to server %s:%s', args.host, args.port)

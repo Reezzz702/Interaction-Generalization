@@ -210,7 +210,7 @@ class SRLAgent():
     location = input_data['agent'].get_location()
     pos = np.array([location.x, location.y])
 
-    compass = t_u.preprocess_compass(input_data['imu'].compass)
+    compass = np.deg2rad(self.actor.get_transform().rotation.yaw)
     speed = self._get_forward_speed()
     
     rgb = []
