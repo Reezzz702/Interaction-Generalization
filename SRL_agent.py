@@ -12,19 +12,14 @@ import math
 
 from team_code.model import LidarCenterNet
 from team_code.config import GlobalConfig
-from team_code.nav_planner import RoutePlanner, extrapolate_waypoint_route
 from team_code.data import CARLA_Data
 
 from filterpy.kalman import MerweScaledSigmaPoints
 from filterpy.kalman import UnscentedKalmanFilter as UKF
 
-# from scenario_logger import ScenarioLogger
 import team_code.transfuser_utils as t_u
 
-import pathlib
 import pickle
-import ujson  # Like json but faster
-import gzip
 from copy import deepcopy
 
 # Configure pytorch for maximum performance
@@ -288,6 +283,7 @@ class SRLAgent():
       if "lidar" in tick_data:
         self.lidar_last = deepcopy(tick_data['lidar'])
       input_data['control'] = control
+      return
 
     
     lidar_indices = []
@@ -317,13 +313,15 @@ class SRLAgent():
       self.control = tmp_control
 
       input_data['control'] = tmp_control
+      return
 
     # Possible action repeat configuration
     if self.step % self.config.action_repeat == 1:
       self.lidar_last = deepcopy(tick_data['lidar'])
 
       input_data['control'] = self.control
-
+      return
+    
     # Voxelize LiDAR and stack temporal frames
     lidar_bev = []
     # prepare LiDAR input
@@ -473,11 +471,6 @@ class SRLAgent():
         throttle = 0.0
         brake = True
         self.force_move = self.config.creep_duration
-
-    # if self.stop_sign_controller:
-    #   if stop_for_stop_sign:
-    #     throttle = 0.0
-    #     brake = True
 
     control = carla.VehicleControl(steer=float(steer), throttle=float(throttle), brake=float(brake))
 
