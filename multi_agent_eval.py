@@ -47,8 +47,9 @@ from autopilot import AutoPilot
 from agents.navigation.global_route_planner import GlobalRoutePlanner
 from roach_agent import BEV_MAP
 from threading import Thread
-from sensors import SensorManager, CollisionSensor, GnssSensor, IMUSensor, get_actor_display_name
+from sensors import SensorManager, CollisionSensor, get_actor_display_name
 from plant_agent import PlanTAgent
+from checkpoint_tools import parse_checkpoint
 # from SRL_agent import SRLAgent
 
 # ==============================================================================
@@ -59,8 +60,6 @@ def find_weather_presets():
 	name = lambda x: ' '.join(m.group(0) for m in rgx.finditer(x))
 	presets = [x for x in dir(carla.WeatherParameters) if re.match('[A-Z].+', x)]
 	return [(getattr(carla.WeatherParameters, x), name(x)) for x in presets]
-
-
 
 
 # ==============================================================================
@@ -103,7 +102,6 @@ class World(object):
 		self._weather_presets = find_weather_presets()
 		self._weather_index = 0
 		self._actor_filter = args.filter
-		self._gamma = args.gamma
   
 		self.sensor_spec = [{
 				'type': 'sensor.camera.rgb',
@@ -213,13 +211,6 @@ class World(object):
 		pass
 
 	def destroy(self):        
-		# sensors = [
-		# 	self.gnss_sensor.sensor,
-		# 	self.imu_sensor.sensor]
-		# for sensor in sensors:
-		# 	if sensor is not None:
-		# 		sensor.stop()
-		# 		sensor.destroy()
 		self.sensor_manager.destroy()
 		if self.player is not None:
 			self.player.destroy()
@@ -442,9 +433,11 @@ def check_close(ev_loc, loc0, distance = 3):
 	if ev_loc.distance(loc0) < distance:
 		return True
 
-def init_multi_agent(args, world, planner, agent_list, start_list, dest_list, roach_policy=None):
+def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 	map = world.get_map()
-
+	agent_list = scenario['agent']
+	start_list = scenario['start']
+	dest_list = scenario['dest']
 	ego_agent_list = []
 	interactive_agent_list = []
 
@@ -517,7 +510,7 @@ def init_multi_agent(args, world, planner, agent_list, start_list, dest_list, ro
 				agent_dict['model'] = roach_agent
 				agent_dict['name'] = agent
 			if agent == "plant":
-				plant_agent = PlanTAgent(carla_agent, world, route)
+				plant_agent = PlanTAgent(carla_agent, world, args.plant_config)
 				agent_dict['model'] = plant_agent   
 				agent_dict['name'] = 'plant' 
 			if agent == "auto":
@@ -557,235 +550,248 @@ assigned_location_dict = {'E1': (13.700, 2.600),
 def game_loop(args):
 	f = open(args.eval_config)
 	eval_config = json.load(f)
-	scenario_index = 0
-	sensor_types = ['imu', 'gnss', 'collision']
-	for town, scenarios in eval_config["available_scenarios"].items():
-		for scene in scenarios:
-			scenario_index += 1
-			logging.info(f'Running scenario {scenario_index} at {town}')
-
-			client = carla.Client(args.host, args.port)
-			client.reload_world()
-			client.set_timeout(10.0)
-
-			# Initialize pygame
-			pygame.init()
-			pygame.font.init()
-			display = pygame.display.set_mode(
-				(512, 512),
-				pygame.HWSURFACE | pygame.DOUBLEBUF)
-			display.fill((0,0,0))
-			pygame.display.flip()
-			
-			hud = HUD(args.width, args.height, args.distance, town)
-			world = World(client.load_world(town), hud, args)
-			avg_FPS = 0
-			clock = pygame.time.Clock()
-
-			# settings = world.world.get_settings()
-			# settings.fixed_delta_seconds = 0.05
-			# settings.synchronous_mode = True  # Enables synchronous mode
-			# world.world.apply_settings(settings)
-
-			# spawn other agent 
-			map = world.world.get_map()
-			spawn_points = map.get_spawn_points()
-			planner = GlobalRoutePlanner(map, sampling_resolution=1.0)                
-
-			# Initialize a global roach for all roach agent to avoid generating multipile HD maps
-			global_roach = None
-			global_roach_policy = None
-			if 'roach' in scene['agent']:
-				global_roach = BEV_MAP(town)
-				global_roach.init_vehicle_bbox(world.player.id)
-				global_roach_policy = global_roach.init_policy()
-				
-			ego_agent_list, interactive_agent_list = init_multi_agent(args, world.world, planner, scene['agent'], scene['start'], scene['dest'], global_roach_policy)
-			start_frame = None
-			while True:
-				clock.tick_busy_loop(30)
-				frame = world.world.tick()
-				if not start_frame:
-					start_frame = frame
-     
-				view = pygame.surfarray.array3d(display)
-				view = view.transpose([1, 0, 2]) 
-				image = cv2.cvtColor(view, cv2.COLOR_RGB2BGR)        
-
-				world.tick(clock, frame, image)
-				avg_FPS = 0.98 * avg_FPS + 0.02 * clock.get_fps()
-				
-				# Set traffic lights to green
-				traffic_light_actors = world.world.get_actors().filter('traffic.traffic_light*')
-				for l in traffic_light_actors:
-					l.set_state(carla.TrafficLightState.Green)
-     
-				# continue
-				# collect data for all roach if needed
-				if global_roach:
-					processed_data = global_roach.collect_actor_data(world)
-				
-				
-				###################player control#####################
-				for agent_dict in interactive_agent_list:                        
-					# regenerate a route when the agent deviates from the current route
-					if not check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location, 6):
-						print(f"route deviation: {agent_dict['name']}_{agent_dict['id']}")
-						destination = agent_dict['route'][-1][0].transform.location
-						agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), destination)
-					
-					# Delete reached points from current route
-					while check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location):
-						agent_dict['route'].pop(0)
-						if len(agent_dict['route']) == 0:
-							print(f"route complete: {agent_dict['name']}_{agent_dict['id']}")
-							agent_dict['done'] = 1
-							new_destination = random.choice(spawn_points).location
-							agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), new_destination)
-				
-				for agent_dict in ego_agent_list:                            
-					# regenerate a route when the agent deviates from the current route
-					if not check_close(agent_dict['agent'].get_location(), agent_dict['route'][0][0].transform.location, 6):
-						print(f"route deviation: {agent_dict['name']}_{agent_dict['id']}")
-						destination = agent_dict['route'][-1][0].transform.location
-						agent_dict['route'] = planner.trace_route(agent_dict['agent'].get_location(), destination)
-					
-					# Delete reached points from current route
-					while check_close(agent_dict['agent'].get_location(), agent_dict['route'][0][0].transform.location):
-						agent_dict['route'].pop(0)
-						if len(agent_dict['route']) == 0:
-							print(f"route complete: {agent_dict['name']}_{agent_dict['id']}")
-							agent_dict['done'] = 1
-							new_destination = random.choice(spawn_points).location
-							agent_dict['route'] = planner.trace_route(agent_dict['agent'].get_location(), new_destination)
-
-
-				t_list = []
-				all_agent_list = interactive_agent_list + ego_agent_list
-				for agent_dict in all_agent_list:
-					if agent_dict['name'] == 'roach':
-						route_list = [wp[0].transform.location for wp in agent_dict['route'][0:60]]
-						if args.debug:
-							for w in route_list:
-								world.world.debug.draw_string(w, 'O', draw_shadow=False,
-															color=carla.Color(r=255, g=0, b=0), life_time=10.0,
-															persistent_lines=True)
-						inputs = [route_list, agent_dict]
-						agent_dict['model'].set_data(processed_data)
-
-					if agent_dict['name'] == 'plant':
-						route_list = [wp[0].transform.location for wp in agent_dict['route'][0:60]]
-						if args.debug:
-							for w in route_list:
-								world.world.debug.draw_string(w, 'O', draw_shadow=False,
-															color=carla.Color(r=255, g=0, b=0), life_time=10.0,
-															persistent_lines=True)
-						tick_data = agent_dict['model'].tick(agent_dict)
-						inputs = [tick_data, agent_dict]
-					
-					if agent_dict['name'] == 'e2e':
-						route_list = [wp for wp in agent_dict['route'][0:60]]
-						if args.debug:
-							for w, _ in route_list:
-								world.world.debug.draw_string(w.transform.location, 'O', draw_shadow=False,
-															color=carla.Color(r=255, g=0, b=0), life_time=10.0,
-															persistent_lines=True)
-
-						rgb = agent_dict['sensors'].get_data(frame, 'image')
-						lidar = agent_dict['sensors'].get_data(frame, 'lidar')
-						tick_data = agent_dict['model'].tick(rgb, lidar, agent_dict)
-						inputs = [tick_data, agent_dict]
-
-					if agent_dict['name'] == "auto":
-						route_list = [wp for wp in agent_dict['route'][0:60]]
-						if args.debug:
-							for w, _ in route_list:
-								world.world.debug.draw_string(w.transform.location, 'O', draw_shadow=False,
-															color=carla.Color(r=255, g=0, b=0), life_time=10.0,
-															persistent_lines=True)
-						agent_dict['model'].tick(agent_dict)
-						inputs = [route_list, agent_dict]
-
-
-					t = Thread(target=agent_dict['model'].run_step, args=tuple(inputs))
-					t_list.append(t)
-					t.start()
-				
-				for t in t_list:
-					t.join()
-
-				for agent_dict in all_agent_list:
-					control = agent_dict["control"] 
-					agent_dict["agent"].apply_control(control)
-
-				world.render(display, frame)
-				
-				pygame.display.flip()
-				
-				scene_done = 1
-				for agent_dict in all_agent_list:
-					scene_done = scene_done and agent_dict['done']
-				if scene_done:
-					fps = (frame - start_frame)/hud.simulation_time
-					finish_time = hud.simulation_time
-					break
-				
-				if hud.simulation_time > 30:
-					logging.info('simulation timeout after 30 second')
-					fps = (frame - start_frame)/hud.simulation_time
-					finish_time = hud.simulation_time
-					break
-			
-			logging.debug(f"FPS: {fps}")
+	# scenario_index = 0
+	sensor_types = ['collision']
+	checkpoint = parse_checkpoint(args.checkpoint)
+	if checkpoint['progress']:
+		# scenario_index = checkpoint['progress'][0]
+		evaluation_start = checkpoint['progress'][0] + 1
+	else:
+		checkpoint['progress'].extend([0, len(eval_config["available_scenarios"])])
+		evaluation_start = 0
    
-			for agent_dict in ego_agent_list:
-				id_record = {}
-				collision_count = 0
+	for scenario_index, scenario in enumerate(eval_config["available_scenarios"][evaluation_start:], start=evaluation_start):
+		town = scenario['Town']
+		logging.info(f'Running scenario {scenario_index} at {town}')
 
-				# TEST CASE
-				# agent_dict['collision'].frame_history.append(frame + int(fps)+5)
-				# agent_dict['collision'].id_history[-1].append(1)
-				# agent_dict['collision'].id_history.append(agent_dict['collision'].id_history[-1])
+		client = carla.Client(args.host, args.port)
+		client.reload_world()
+		client.set_timeout(10.0)
+
+		# Initialize pygame
+		pygame.init()
+		pygame.font.init()
+		display = pygame.display.set_mode(
+			(512, 512),
+			pygame.HWSURFACE | pygame.DOUBLEBUF)
+		display.fill((0,0,0))
+		pygame.display.flip()
+		
+		hud = HUD(args.width, args.height, args.distance, town)
+		world = World(client.load_world(town), hud, args)
+		avg_FPS = 0
+		clock = pygame.time.Clock()
+
+		# spawn other agent 
+		map = world.world.get_map()
+		spawn_points = map.get_spawn_points()
+		planner = GlobalRoutePlanner(map, sampling_resolution=1.0)                
+
+		# Initialize a global roach for all roach agent to avoid generating multipile HD maps
+		global_roach = None
+		global_roach_policy = None
+		if 'roach' in scenario['agent']:
+			global_roach = BEV_MAP(town)
+			global_roach.init_vehicle_bbox(world.player.id)
+			global_roach_policy = global_roach.init_policy()
+			
+		ego_agent_list, interactive_agent_list = init_multi_agent(args, world.world, planner, scenario, global_roach_policy)
+		start_frame = None
+		while True:
+			clock.tick_busy_loop(30)
+			frame = world.world.tick()
+			if not start_frame:
+				start_frame = frame
+		
+			view = pygame.surfarray.array3d(display)
+			view = view.transpose([1, 0, 2]) 
+			image = cv2.cvtColor(view, cv2.COLOR_RGB2BGR)        
+
+			world.tick(clock, frame, image)
+			avg_FPS = 0.98 * avg_FPS + 0.02 * clock.get_fps()
+			
+			# Set traffic lights to green
+			traffic_light_actors = world.world.get_actors().filter('traffic.traffic_light*')
+			for l in traffic_light_actors:
+				l.set_state(carla.TrafficLightState.Green)
+		
+			# continue
+			# collect data for all roach if needed
+			if global_roach:
+				processed_data = global_roach.collect_actor_data(world)
+			
+			
+			################### Check every agent route and generate new one if needed. #####################
+			for agent_dict in interactive_agent_list:                        
+				# regenerate a route when the agent deviates from the current route
+				if not check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location, 6):
+					print(f"route deviation: {agent_dict['name']}_{agent_dict['id']}")
+					destination = agent_dict['route'][-1][0].transform.location
+					agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), destination)
 				
-				for idx, frame in enumerate(agent_dict['collision'].frame_history):
-					ids = agent_dict['collision'].id_history[idx]
-					for id in ids:
-						if id in id_record and (frame - id_record[id])/fps > 1:
-							collision_count += 1
-						id_record[id] = frame
-				collision_count += len(id_record)
-
-				logging.debug(f"Collisions: {collision_count}")
-    
-			logging.info(f"Simulation time: {finish_time}")			
-			logging.info("Destroy env")
+				# Delete reached points from current route
+				while check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location):
+					agent_dict['route'].pop(0)
+					if len(agent_dict['route']) == 0:
+						print(f"route complete: {agent_dict['name']}_{agent_dict['id']}")
+						agent_dict['done'] = 1
+						new_destination = random.choice(spawn_points).location
+						agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), new_destination)
 			
+			for agent_dict in ego_agent_list:                            
+				# regenerate a route when the agent deviates from the current route
+				if not check_close(agent_dict['agent'].get_location(), agent_dict['route'][0][0].transform.location, 6):
+					print(f"route deviation: {agent_dict['name']}_{agent_dict['id']}")
+					destination = agent_dict['route'][-1][0].transform.location
+					agent_dict['route'] = planner.trace_route(agent_dict['agent'].get_location(), destination)
+				
+				# Delete reached points from current route
+				while check_close(agent_dict['agent'].get_location(), agent_dict['route'][0][0].transform.location):
+					agent_dict['route'].pop(0)
+					if len(agent_dict['route']) == 0:
+						print(f"route complete: {agent_dict['name']}_{agent_dict['id']}")
+						agent_dict['done'] = 1
+						new_destination = random.choice(spawn_points).location
+						agent_dict['route'] = planner.trace_route(agent_dict['agent'].get_location(), new_destination)
+
+
+			################### Prepare input for each agent. #####################
+			t_list = []
+			all_agent_list = interactive_agent_list + ego_agent_list
 			for agent_dict in all_agent_list:
-				for sensor in sensor_types:
-					if sensor in agent_dict:
-						logging.debug(f"Destroying {sensor} of {agent_dict['id']}")
-						agent_dict[sensor].sensor.stop()
-						agent_dict[sensor].sensor.destroy()
-				if 'sensors' in agent_dict:
-					agent_dict['sensors'].destroy()
-				agent_dict['model'].destroy()
-	
-				# agent_dict['agent'].destroy()
+				if agent_dict['name'] == 'roach':
+					route_list = [wp[0].transform.location for wp in agent_dict['route'][0:60]]
+					if args.debug:
+						for w in route_list:
+							world.world.debug.draw_string(w, 'O', draw_shadow=False,
+														color=carla.Color(r=255, g=0, b=0), life_time=10.0,
+														persistent_lines=True)
+					inputs = [route_list, agent_dict]
+					agent_dict['model'].set_data(processed_data)
 
-			client.apply_batch([carla.command.DestroyActor(x['agent']) for x in all_agent_list])
-			del all_agent_list
-			del ego_agent_list
-			del interactive_agent_list                
-			world.destroy()
-			del client
-			del world
-			del hud
-			del global_roach
-			del global_roach_policy
+				if agent_dict['name'] == 'plant':
+					route_list = [wp[0].transform.location for wp in agent_dict['route'][0:60]]
+					if args.debug:
+						for w in route_list:
+							world.world.debug.draw_string(w, 'O', draw_shadow=False,
+														color=carla.Color(r=255, g=0, b=0), life_time=10.0,
+														persistent_lines=True)
+					tick_data = agent_dict['model'].tick(agent_dict)
+					inputs = [tick_data, agent_dict]
+				
+				if agent_dict['name'] == 'e2e':
+					route_list = [wp for wp in agent_dict['route'][0:60]]
+					if args.debug:
+						for w, _ in route_list:
+							world.world.debug.draw_string(w.transform.location, 'O', draw_shadow=False,
+														color=carla.Color(r=255, g=0, b=0), life_time=10.0,
+														persistent_lines=True)
+
+					rgb = agent_dict['sensors'].get_data(frame, 'image')
+					lidar = agent_dict['sensors'].get_data(frame, 'lidar')
+					tick_data = agent_dict['model'].tick(rgb, lidar, agent_dict)
+					inputs = [tick_data, agent_dict]
+
+				if agent_dict['name'] == "auto":
+					route_list = [wp for wp in agent_dict['route'][0:60]]
+					if args.debug:
+						for w, _ in route_list:
+							world.world.debug.draw_string(w.transform.location, 'O', draw_shadow=False,
+														color=carla.Color(r=255, g=0, b=0), life_time=10.0,
+														persistent_lines=True)
+					agent_dict['model'].tick(agent_dict)
+					inputs = [route_list, agent_dict]
+
+
+				t = Thread(target=agent_dict['model'].run_step, args=tuple(inputs))
+				t_list.append(t)
+				t.start()
 			
-			pygame.quit()
-			logging.debug(f"Finish scenario{scenario_index}")
-			# time.sleep(3)
+			for t in t_list:
+				t.join()
+    
+			################### Apply control to each agent. #####################
+			for agent_dict in all_agent_list:
+				control = agent_dict["control"] 
+				agent_dict["agent"].apply_control(control)
+
+			################### Render scene in both sever and client. #####################
+			world.render(display, frame)
+			pygame.display.flip()
+   
+			################### Check if all agent complete the scenario. #####################
+			scene_done = 1
+			for agent_dict in all_agent_list:
+				scene_done = scene_done and agent_dict['done']
+			if scene_done:
+				fps = (frame - start_frame)/hud.simulation_time
+				finish_time = hud.simulation_time
+				break
+			
+			################### Break if timeout. #####################
+			if hud.simulation_time > 30:
+				logging.info('simulation timeout after 30 second')
+				fps = (frame - start_frame)/hud.simulation_time
+				finish_time = hud.simulation_time
+				break
+		
+		logging.debug(f"FPS: {fps}")
+	
+		################### Compute number of collision. #####################
+		collision_count = 0
+		for agent_dict in ego_agent_list:
+			id_record = {}
+			
+			for idx, frame in enumerate(agent_dict['collision'].frame_history):
+				ids = agent_dict['collision'].id_history[idx]
+				for id in ids:
+					if id in id_record and (frame - id_record[id])/fps > 1:
+						collision_count += 1
+					id_record[id] = frame
+			collision_count += len(id_record)
+
+			logging.debug(f"Collisions: {collision_count}")
+	
+		logging.info(f"Simulation time: {finish_time}")			
+		logging.debug("Destroy env")
+		
+		for agent_dict in all_agent_list:
+			if "collision" in agent_dict:
+				agent_dict['collision'].sensor.stop()
+				agent_dict['collision'].sensor.destroy()
+			if 'sensors' in agent_dict:
+				agent_dict['sensors'].destroy()
+			agent_dict['model'].destroy()
+
+
+		client.apply_batch([carla.command.DestroyActor(x['agent']) for x in all_agent_list])
+		world.destroy()
+		del all_agent_list
+		del ego_agent_list
+		del interactive_agent_list                
+		del client
+		del world
+		del hud
+		del global_roach
+		del global_roach_policy
+		
+		if collision_count > 0 or finish_time > 30:
+			success = False
+		else:
+			success = True
+		result = {
+			"Index": scenario_index,
+			"Collisions": collision_count,
+			"Completion time": finish_time,
+			"Success": success
+		}
+		checkpoint['records'].append(result)
+		checkpoint['progress'][0] = scenario_index
+		with open(args.checkpoint, 'w') as fd:
+			json.dump(checkpoint, fd, indent=4, sort_keys=True)
+
+		pygame.quit()
+		logging.debug(f"Finish scenario{scenario_index}")
      
 				
 
@@ -795,12 +801,7 @@ def game_loop(args):
 # ==============================================================================
 def main():
 	argparser = argparse.ArgumentParser(
-		description='CARLA Manual Control Client')
-	argparser.add_argument(
-		'-v', '--verbose',
-		action='store_true',
-		dest='debug',
-		help='print debug information')
+		description='Interaction Benchmark')
 	argparser.add_argument(
 		'--host',
 		metavar='H',
@@ -833,11 +834,6 @@ def main():
 		type=float,
 		help='distance to intersection for toggling camera)')
 	argparser.add_argument(
-		'--gamma',
-		default=2.2,
-		type=float,
-		help='Gamma correction of the camera (default: 2.2)')
-	argparser.add_argument(
 		'--eval_config',
 		default='eval_config.json',
 		type=str,
@@ -852,21 +848,30 @@ def main():
 		type=str,
 		help='Path to ego agent config')
 	argparser.add_argument(
+		'--plant_config',
+		default='roach',
+		type=str,
+		help='Path to plant agent config if needed')
+	argparser.add_argument(
    	'--debug',
 		default=False,
 		type=bool,
 		help='visualize debug information')
 	argparser.add_argument(
-   	'--checkpoints',
+   	'--checkpoint',
 		default='results.json',
 		type=str,
 		help='Path to checkpoint used for saving statistics and resuming')
+	argparser.add_argument(
+   	'--resume',
+		default='1',
+		type=bool,
+		help='Weather to resume the evaluation from checkpoint, default is set to True')
 	args = argparser.parse_args()
 
 	args.width, args.height = [int(x) for x in args.res.split('x')]
 
-	# log_level = logging.DEBUG if args.debug else logging.INFO
-	log_level = logging.INFO
+	log_level = logging.DEBUG if args.debug else logging.INFO
 	logging.basicConfig(format='%(levelname)s: %(message)s', level=log_level)
 
 	logging.info('listening to server %s:%s', args.host, args.port)

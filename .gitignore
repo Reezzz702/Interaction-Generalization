@@ -160,3 +160,4 @@ cython_debug/
 test.py
 /ckpt
 /checkpoints
+/results.json
