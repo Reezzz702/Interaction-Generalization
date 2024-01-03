@@ -48,6 +48,7 @@ from agents.navigation.global_route_planner import GlobalRoutePlanner
 from roach_agent import BEV_MAP
 from threading import Thread
 from sensors import SensorManager, CollisionSensor, GnssSensor, IMUSensor, get_actor_display_name
+from plant_agent import PlanTAgent
 # from SRL_agent import SRLAgent
 
 # ==============================================================================
@@ -515,6 +516,10 @@ def init_multi_agent(args, world, planner, agent_list, start_list, dest_list, ro
 				roach_agent.set_policy(roach_policy)
 				agent_dict['model'] = roach_agent
 				agent_dict['name'] = agent
+			if agent == "plant":
+				plant_agent = PlanTAgent(carla_agent, world, route)
+				agent_dict['model'] = plant_agent   
+				agent_dict['name'] = 'plant' 
 			if agent == "auto":
 				auto_agent = AutoPilot(carla_agent, world, route)
 				agent_dict['model'] = auto_agent   
@@ -610,6 +615,11 @@ def game_loop(args):
 				world.tick(clock, frame, image)
 				avg_FPS = 0.98 * avg_FPS + 0.02 * clock.get_fps()
 				
+				# Set traffic lights to green
+				traffic_light_actors = world.world.get_actors().filter('traffic.traffic_light*')
+				for l in traffic_light_actors:
+					l.set_state(carla.TrafficLightState.Green)
+     
 				# continue
 				# collect data for all roach if needed
 				if global_roach:
@@ -662,6 +672,16 @@ def game_loop(args):
 															persistent_lines=True)
 						inputs = [route_list, agent_dict]
 						agent_dict['model'].set_data(processed_data)
+
+					if agent_dict['name'] == 'plant':
+						route_list = [wp[0].transform.location for wp in agent_dict['route'][0:60]]
+						if args.debug:
+							for w in route_list:
+								world.world.debug.draw_string(w, 'O', draw_shadow=False,
+															color=carla.Color(r=255, g=0, b=0), life_time=10.0,
+															persistent_lines=True)
+						tick_data = agent_dict['model'].tick(agent_dict)
+						inputs = [tick_data, agent_dict]
 					
 					if agent_dict['name'] == 'e2e':
 						route_list = [wp for wp in agent_dict['route'][0:60]]
@@ -675,7 +695,6 @@ def game_loop(args):
 						lidar = agent_dict['sensors'].get_data(frame, 'lidar')
 						tick_data = agent_dict['model'].tick(rgb, lidar, agent_dict)
 						inputs = [tick_data, agent_dict]
-
 
 					if agent_dict['name'] == "auto":
 						route_list = [wp for wp in agent_dict['route'][0:60]]

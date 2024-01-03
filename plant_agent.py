@@ -12,15 +12,8 @@ import carla
 from team_code.config import GlobalConfig
 import team_code.transfuser_utils as t_u
 
-SAVE_PATH = os.environ.get('SAVE_PATH', None)
-
-
-def get_entry_point():
-	return 'PlanTAgent'
-
-
 class PlanTAgent():
-	def setup(self, actor, world, path_to_conf_file):
+	def __init__(self, actor, world, path_to_conf_file):
 		torch.cuda.empty_cache()
 
 		with open(os.path.join(path_to_conf_file, 'config.pickle'), 'rb') as args_file:
@@ -118,7 +111,10 @@ class PlanTAgent():
 
 		ego_vehicle_waypoint = self._world.get_map().get_waypoint(self.actor.get_location())
 		result['junction'] = ego_vehicle_waypoint.is_junction
-
+		
+		bounding_boxes = self.get_bounding_boxes()
+		result['bounding_boxes'] = bounding_boxes
+  
 		return result
 		
 	@torch.inference_mode()
@@ -129,7 +125,8 @@ class PlanTAgent():
 			control.steer = 0.0
 			control.throttle = 0.0
 			control.brake = 1.0
-			return control
+			input_data['control'] = control
+			return
 		
 		target_point = torch.tensor(tick_data['target_point'], dtype=torch.float32).to(self.device).unsqueeze(0)
 		
@@ -219,6 +216,7 @@ class PlanTAgent():
 		control.steer = float(steer)
 		control.throttle = float(throttle)
 		control.brake = float(brake)
+		input_data['control'] = control
 
 
 	def _get_forward_speed(self, transform=None, velocity=None):
@@ -235,15 +233,15 @@ class PlanTAgent():
 		speed = np.dot(vel_np, orientation)
 		return speed
 	
-	def get_bounding_boxes(self, lidar=None):
+	def get_bounding_boxes(self):
 		results = []
 
-		ego_transform = self._vehicle.get_transform()
-		ego_control = self._vehicle.get_control()
-		ego_velocity = self._vehicle.get_velocity()
+		ego_transform = self.actor.get_transform()
+		ego_control = self.actor.get_control()
+		ego_velocity = self.actor.get_velocity()
 		ego_matrix = np.array(ego_transform.get_matrix())
 		ego_rotation = ego_transform.rotation
-		ego_extent = self._vehicle.bounding_box.extent
+		ego_extent = self.actor.bounding_box.extent
 		ego_speed = self._get_forward_speed(transform=ego_transform, velocity=ego_velocity)
 		ego_dx = np.array([ego_extent.x, ego_extent.y, ego_extent.z])
 		ego_yaw = np.deg2rad(ego_rotation.yaw)
@@ -288,11 +286,7 @@ class PlanTAgent():
 					vehicle_speed = self._get_forward_speed(transform=vehicle_transform, velocity=vehicle_velocity)
 					vehicle_brake = vehicle_control.brake
 
-					# Computes how many LiDAR hits are on a bounding box. Used to filter invisible boxes during data loading.
-					if not lidar is None:
-						num_in_bbox_points = self.get_points_in_bbox(relative_pos, relative_yaw, vehicle_extent_list, lidar)
-					else:
-						num_in_bbox_points = -1
+					num_in_bbox_points = -1
 
 					distance = np.linalg.norm(relative_pos)
 
@@ -327,11 +321,7 @@ class PlanTAgent():
 
 				walker_speed = self._get_forward_speed(transform=walker_transform, velocity=walker_velocity)
 
-				# Computes how many LiDAR hits are on a bounding box. Used to filter invisible boxes during data loading.
-				if not lidar is None:
-					num_in_bbox_points = self.get_points_in_bbox(relative_pos, relative_yaw, walker_extent, lidar)
-				else:
-					num_in_bbox_points = -1
+				num_in_bbox_points = -1
 
 				distance = np.linalg.norm(relative_pos)
 
