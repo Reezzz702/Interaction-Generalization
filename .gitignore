@@ -161,3 +161,4 @@ test.py
 /ckpt
 /checkpoints
 /results.json
+/results

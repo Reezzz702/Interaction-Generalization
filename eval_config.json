@@ -3,21 +3,21 @@
   [
     {
       "Town": "Town05",
-      "agent": ["plant"],
-      "start": ["E1"],
-      "dest": ["A3"]
+      "agent": ["plant", "plant", "plant"],
+      "start": ["E1", "A1", "B1"],
+      "dest": ["A3", "C3", "E3"]
     },
     {
       "Town": "Town05",
-      "agent": ["plant"],
-      "start": ["E1"],
-      "dest": ["E3"]
+      "agent": ["plant", "auto", "auto"],
+      "start": ["E1", "A1", "B1"],
+      "dest": ["A3", "C3", "E3"]
     },
     {
       "Town": "Town05",
-      "agent": ["plant"],
-      "start": ["E1"],
-      "dest": ["B3"]
+      "agent": ["plant", "roach", "roach"],
+      "start": ["E1", "A1", "B1"],
+      "dest": ["A3", "C3", "E3"]
     }
   ]
 }

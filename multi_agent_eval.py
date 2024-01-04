@@ -49,6 +49,8 @@ from roach_agent import BEV_MAP
 from threading import Thread
 from sensors import SensorManager, CollisionSensor, get_actor_display_name
 from plant_agent import PlanTAgent
+from pathlib import Path
+from PIL import Image
 from checkpoint_tools import parse_checkpoint
 # from SRL_agent import SRLAgent
 
@@ -206,6 +208,7 @@ class World(object):
 		self.surface = pygame.surfarray.make_surface(image.swapaxes(0, 1))
 		if self.surface is not None:
 				display.blit(self.surface, (0, 0))
+		return image
 
 	def destroy_sensors(self):
 		pass
@@ -550,16 +553,19 @@ assigned_location_dict = {'E1': (13.700, 2.600),
 def game_loop(args):
 	f = open(args.eval_config)
 	eval_config = json.load(f)
-	# scenario_index = 0
-	sensor_types = ['collision']
 	checkpoint = parse_checkpoint(args.checkpoint)
 	if checkpoint['progress']:
-		# scenario_index = checkpoint['progress'][0]
-		evaluation_start = checkpoint['progress'][0] + 1
+		evaluation_start = checkpoint['progress'][0]
 	else:
 		checkpoint['progress'].extend([0, len(eval_config["available_scenarios"])])
 		evaluation_start = 0
-   
+  
+	save_path = os.environ.get('SAVE_PATH', None)
+	Path(save_path).mkdir(parents=True, exist_ok=True)
+	if args.record:
+		os.makedirs(f'{save_path}/gifs', exist_ok=True)
+	
+
 	for scenario_index, scenario in enumerate(eval_config["available_scenarios"][evaluation_start:], start=evaluation_start):
 		town = scenario['Town']
 		logging.info(f'Running scenario {scenario_index} at {town}')
@@ -597,6 +603,10 @@ def game_loop(args):
 			
 		ego_agent_list, interactive_agent_list = init_multi_agent(args, world.world, planner, scenario, global_roach_policy)
 		start_frame = None
+
+		if save_path and args.record:
+			image_buffer = []
+
 		while True:
 			clock.tick_busy_loop(30)
 			frame = world.world.tick()
@@ -716,9 +726,11 @@ def game_loop(args):
 				agent_dict["agent"].apply_control(control)
 
 			################### Render scene in both sever and client. #####################
-			world.render(display, frame)
+			bev_image = world.render(display, frame)
 			pygame.display.flip()
-   
+			if save_path and args.record and frame%5 == 0:
+				image_buffer.append(Image.fromarray(bev_image))
+
 			################### Check if all agent complete the scenario. #####################
 			scene_done = 1
 			for agent_dict in all_agent_list:
@@ -789,7 +801,16 @@ def game_loop(args):
 		checkpoint['progress'][0] = scenario_index + 1
 		with open(args.checkpoint, 'w') as fd:
 			json.dump(checkpoint, fd, indent=4, sort_keys=True)
-
+		
+		if len(image_buffer) > 0:
+			image_buffer[0].save(
+				f'{save_path}/gifs/{scenario_index}.gif',
+				save_all=True,
+        append_images=image_buffer[1:],
+        duration=int(0.0005 * 1000),
+        loop=0,  # 0 means an infinite loop
+			)
+		
 		pygame.quit()
 		logging.debug(f"Finish scenario{scenario_index}")
      
@@ -867,6 +888,11 @@ def main():
 		default='1',
 		type=bool,
 		help='Weather to resume the evaluation from checkpoint, default is set to True')
+	argparser.add_argument(
+   	'--record',
+		default='1',
+		type=bool,
+		help='Weather to record video and save in SAVE_PATH/gifs')
 	args = argparser.parse_args()
 
 	args.width, args.height = [int(x) for x in args.res.split('x')]
