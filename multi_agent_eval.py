@@ -786,7 +786,7 @@ def game_loop(args):
 			"Success": success
 		}
 		checkpoint['records'].append(result)
-		checkpoint['progress'][0] = scenario_index
+		checkpoint['progress'][0] = scenario_index + 1
 		with open(args.checkpoint, 'w') as fd:
 			json.dump(checkpoint, fd, indent=4, sort_keys=True)
 

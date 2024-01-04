@@ -171,7 +171,7 @@ class PlanTAgent():
 		pred_checkpoints = []
 		pred_bbs = []
 		for i in range(self.model_count):
-			pred_wp, pred_target_speed, pred_checkpoint, pred_bb = self.nets[i].forward(bounding_boxes=bounding_boxes_padded,
+			pred_wp, pred_target_speed, pred_checkpoint, pred_bb, _ = self.nets[i].forward(bounding_boxes=bounding_boxes_padded,
 																																									route=route,
 																																									target_point=target_point,
 																																									light_hazard=light_hazard,
