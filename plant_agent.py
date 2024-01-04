@@ -5,7 +5,7 @@ import pickle
 from team_code.plant import PlanT
 from team_code.data import CARLA_Data
 import math
-import cv2
+from collections import deque
 import numpy as np
 
 import carla
@@ -29,7 +29,7 @@ class PlanTAgent():
 
 		self.data = CARLA_Data(root=[], config=self.config, shared_dict=None)
 
-		self.config.inference_direct_controller = int(os.environ.get('DIRECT', 0))
+		self.config.inference_direct_controller = 1
 		self.uncertainty_weight = int(os.environ.get('UNCERTAINTY_WEIGHT', 1))
 		print('Uncertainty weighting?: ', self.uncertainty_weight)
 		self.config.brake_uncertainty_threshold = float(
@@ -63,6 +63,14 @@ class PlanTAgent():
 		self._world = world
 		
 		self.initialized = False
+		self.target_point_prev = [1e5, 1e5]
+		self.commands = deque(maxlen=2)
+		self.commands.append(4)
+		self.commands.append(4)
+
+	def destroy(self):
+		del self.nets
+
 		
 	def tick(self, input_data):
 		result = {}
@@ -78,13 +86,14 @@ class PlanTAgent():
 		
 		dense_route = []
 		if len(route_list) >= self.config.num_route_points_saved:
-			remaining_route = list(self.remaining_route)[:self.config.num_route_points_saved]
+			remaining_route = list(route_list)[:self.config.num_route_points_saved]
 		else:
-			remaining_route = list(self.remaining_route)
+			remaining_route = list(route_list)
 
 		for checkpoint in remaining_route:
-			dense_route.append(t_u.inverse_conversion_2d(checkpoint[0], pos, compass).tolist())
-		
+			dense_route.append(t_u.inverse_conversion_2d(np.array([checkpoint[0].transform.location.x, checkpoint[0].transform.location.y]), pos, compass).tolist())	
+		result['route'] = dense_route
+  
 		if len(route_list) > 2:
 			target_point, far_command = route_list[1]
 		elif len(route_list) > 1:
@@ -100,7 +109,7 @@ class PlanTAgent():
 		one_hot_command = t_u.command_to_one_hot(self.commands[-2])
 		result['command'] = torch.from_numpy(one_hot_command[np.newaxis]).to(self.device, dtype=torch.float32)
 
-		ego_target_point = t_u.inverse_conversion_2d(target_point, result['gps'], result['compass'])
+		ego_target_point = t_u.inverse_conversion_2d(target_point, pos, compass)
 		ego_target_point = torch.from_numpy(ego_target_point[np.newaxis]).to(self.device, dtype=torch.float32)
 
 		result['target_point'] = ego_target_point  
@@ -164,7 +173,7 @@ class PlanTAgent():
 
 		bounding_boxes_padded = bounding_boxes_padded.unsqueeze(0)
 
-		speed = torch.tensor(tick_data['sp`eed'], dtype=torch.float32).to(self.device).unsqueeze(0)
+		speed = torch.tensor(tick_data['speed'], dtype=torch.float32).to(self.device).unsqueeze(0)
 
 		pred_wps = []
 		pred_target_speeds = []
@@ -177,7 +186,7 @@ class PlanTAgent():
 																																									light_hazard=light_hazard,
 																																									stop_hazard=stop_sign_hazard,
 																																									junction=junction,
-																																									velocity=speed.unsqueeze(1))
+																																									velocity=speed)
 
 			pred_wps.append(pred_wp)
 			pred_bbs.append(t_u.plant_quant_to_box(self.config, pred_bb))
@@ -205,7 +214,7 @@ class PlanTAgent():
 			else:
 				pred_target_speed_index = torch.argmax(pred_target_speed)
 				pred_target_speed = self.config.target_speeds[pred_target_speed_index]
-
+    
 		if self.config.inference_direct_controller and \
 				self.config.use_controller_input_prediction:
 			steer, throttle, brake = self.nets[0].control_pid_direct(pred_target_speed, pred_angle, speed, False)
@@ -259,7 +268,7 @@ class PlanTAgent():
 				'distance': -1,
 				'speed': ego_speed,
 				'brake': ego_brake,
-				'id': int(self._vehicle.id),
+				'id': int(self.actor.id),
 				'matrix': ego_transform.get_matrix()
 		}
 		results.append(result)
@@ -268,8 +277,8 @@ class PlanTAgent():
 		vehicles = self._actors.filter('*vehicle*')
 
 		for vehicle in vehicles:
-			if vehicle.get_location().distance(self._vehicle.get_location()) < self.config.bb_save_radius:
-				if vehicle.id != self._vehicle.id:
+			if vehicle.get_location().distance(self.actor.get_location()) < self.config.bb_save_radius:
+				if vehicle.id != self.actor.id:
 					vehicle_transform = vehicle.get_transform()
 					vehicle_rotation = vehicle_transform.rotation
 					vehicle_matrix = np.array(vehicle_transform.get_matrix())
@@ -306,7 +315,7 @@ class PlanTAgent():
 
 		walkers = self._actors.filter('*walker*')
 		for walker in walkers:
-			if walker.get_location().distance(self._vehicle.get_location()) < self.config.bb_save_radius:
+			if walker.get_location().distance(self.actor.get_location()) < self.config.bb_save_radius:
 				walker_transform = walker.get_transform()
 				walker_velocity = walker.get_velocity()
 				walker_rotation = walker.get_transform().rotation
@@ -337,56 +346,5 @@ class PlanTAgent():
 						'matrix': walker_transform.get_matrix()
 				}
 				results.append(result)
-
-		for traffic_light in self.close_traffic_lights:
-			traffic_light_extent = [traffic_light[0].extent.x, traffic_light[0].extent.y, traffic_light[0].extent.z]
-
-			traffic_light_transform = carla.Transform(traffic_light[0].location, traffic_light[0].rotation)
-			traffic_light_rotation = traffic_light_transform.rotation
-			traffic_light_matrix = np.array(traffic_light_transform.get_matrix())
-			yaw = np.deg2rad(traffic_light_rotation.yaw)
-
-			relative_yaw = t_u.normalize_angle(yaw - ego_yaw)
-			relative_pos = t_u.get_relative_transform(ego_matrix, traffic_light_matrix)
-
-			distance = np.linalg.norm(relative_pos)
-
-			result = {
-					'class': 'traffic_light',
-					'extent': traffic_light_extent,
-					'position': [relative_pos[0], relative_pos[1], relative_pos[2]],
-					'yaw': relative_yaw,
-					'distance': distance,
-					'state': str(traffic_light[1]),
-					'id': int(traffic_light[2]),
-					'affects_ego': traffic_light[3],
-					'matrix': traffic_light_transform.get_matrix()
-			}
-			results.append(result)
-
-		for stop_sign in self.close_stop_signs:
-			stop_sign_extent = [stop_sign[0].extent.x, stop_sign[0].extent.y, stop_sign[0].extent.z]
-
-			stop_sign_transform = carla.Transform(stop_sign[0].location, stop_sign[0].rotation)
-			stop_sign_rotation = stop_sign_transform.rotation
-			stop_sign_matrix = np.array(stop_sign_transform.get_matrix())
-			yaw = np.deg2rad(stop_sign_rotation.yaw)
-
-			relative_yaw = t_u.normalize_angle(yaw - ego_yaw)
-			relative_pos = t_u.get_relative_transform(ego_matrix, stop_sign_matrix)
-
-			distance = np.linalg.norm(relative_pos)
-
-			result = {
-					'class': 'stop_sign',
-					'extent': stop_sign_extent,
-					'position': [relative_pos[0], relative_pos[1], relative_pos[2]],
-					'yaw': relative_yaw,
-					'distance': distance,
-					'id': int(stop_sign[1]),
-					'affects_ego': stop_sign[2],
-					'matrix': stop_sign_transform.get_matrix()
-			}
-			results.append(result)
 
 		return results

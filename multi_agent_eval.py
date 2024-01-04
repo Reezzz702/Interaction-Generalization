@@ -849,7 +849,7 @@ def main():
 		help='Path to ego agent config')
 	argparser.add_argument(
 		'--plant_config',
-		default='roach',
+		default='checkpoints/PlanT',
 		type=str,
 		help='Path to plant agent config if needed')
 	argparser.add_argument(
