@@ -441,8 +441,9 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 	agent_list = scenario['agent']
 	start_list = scenario['start']
 	dest_list = scenario['dest']
-	ego_agent_list = []
+	e2e_agent_list = []
 	interactive_agent_list = []
+	ego_type = agent_list[0]
 
 	for i, agent in enumerate(agent_list):
 		agent_dict = {}
@@ -489,21 +490,21 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 			print("Spawn failed because of collision at spawn position")
 
   
-		if agent == "ego":
+		if agent == "e2e":
 			# Load agent
-			module_name = os.path.basename(args.ego_agent).split('.')[0]
-			sys.path.insert(0, os.path.dirname(args.ego_agent))
+			module_name = os.path.basename(args.e2e_agent).split('.')[0]
+			sys.path.insert(0, os.path.dirname(args.e2e_agent))
 			module_agent = importlib.import_module(module_name)
 			agent_class_name = getattr(module_agent, 'get_entry_point')()
-			ego_agent = getattr(module_agent, agent_class_name)(actor=carla_agent, path_to_config=args.agent_config)
+			e2e_agent = getattr(module_agent, agent_class_name)(actor=carla_agent, path_to_config=args.agent_config)
    
-			agent_dict['model'] = ego_agent
+			agent_dict['model'] = e2e_agent
 			agent_dict['name'] = 'e2e'
-			sensor_spec_list = ego_agent.sensors()
+			sensor_spec_list = e2e_agent.sensors()
 			agent_dict['sensors'] = SensorManager(carla_agent, sensor_spec_list)
-			# agent_dict['sensors'].setup(sensor_spec_list)
-			agent_dict['collision'] = CollisionSensor(carla_agent)
-			ego_agent_list.append(agent_dict)
+			if agent == ego_type:
+				agent_dict['collision'] = CollisionSensor(carla_agent)
+			e2e_agent_list.append(agent_dict)
 		else:
 			if agent == 'roach':            
 				# Initialize roach agent
@@ -512,19 +513,25 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 				roach_agent.set_policy(roach_policy)
 				agent_dict['model'] = roach_agent
 				agent_dict['name'] = agent
+				if agent == ego_type:
+					agent_dict['collision'] = CollisionSensor(carla_agent)
 			if agent == "plant":
 				plant_agent = PlanTAgent(carla_agent, world, args.plant_config)
 				agent_dict['model'] = plant_agent   
 				agent_dict['name'] = 'plant' 
+				if agent == ego_type:
+					agent_dict['collision'] = CollisionSensor(carla_agent)
 			if agent == "auto":
 				auto_agent = AutoPilot(carla_agent, world, route)
 				agent_dict['model'] = auto_agent   
 				agent_dict['name'] = 'auto' 
+				if agent == ego_type:
+					agent_dict['collision'] = CollisionSensor(carla_agent)
 			
 			interactive_agent_list.append(agent_dict)                
 
 	
-	return ego_agent_list, interactive_agent_list
+	return e2e_agent_list, interactive_agent_list
 
 
 assigned_location_dict = {'E1': (13.700, 2.600),
@@ -555,18 +562,19 @@ def game_loop(args):
 	eval_config = json.load(f)
 	checkpoint = parse_checkpoint(args.checkpoint)
 	if checkpoint['progress']:
-		evaluation_start = checkpoint['progress'][0]
+		resume = checkpoint['progress'][0]
+		if resume == len(eval_config["available_scenarios"]):
+			return
 	else:
 		checkpoint['progress'].extend([0, len(eval_config["available_scenarios"])])
-		evaluation_start = 0
+		resume = 0
   
 	save_path = os.environ.get('SAVE_PATH', None)
 	Path(save_path).mkdir(parents=True, exist_ok=True)
 	if args.record:
 		os.makedirs(f'{save_path}/gifs', exist_ok=True)
-	
 
-	for scenario_index, scenario in enumerate(eval_config["available_scenarios"][evaluation_start:], start=evaluation_start):
+	for scenario_index, scenario in enumerate(eval_config["available_scenarios"][resume:], start=resume):
 		town = scenario['Town']
 		logging.info(f'Running scenario {scenario_index} at {town}')
 
@@ -601,7 +609,7 @@ def game_loop(args):
 			global_roach.init_vehicle_bbox(world.player.id)
 			global_roach_policy = global_roach.init_policy()
 			
-		ego_agent_list, interactive_agent_list = init_multi_agent(args, world.world, planner, scenario, global_roach_policy)
+		e2e_agent_list, interactive_agent_list = init_multi_agent(args, world.world, planner, scenario, global_roach_policy)
 		start_frame = None
 
 		if save_path and args.record:
@@ -630,12 +638,12 @@ def game_loop(args):
 			if global_roach:
 				processed_data = global_roach.collect_actor_data(world)
 			
-			
+			all_agent_list = interactive_agent_list + e2e_agent_list
 			################### Check every agent route and generate new one if needed. #####################
-			for agent_dict in interactive_agent_list:                        
+			for agent_dict in all_agent_list:                        
 				# regenerate a route when the agent deviates from the current route
 				if not check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location, 6):
-					print(f"route deviation: {agent_dict['name']}_{agent_dict['id']}")
+					logging.debug(f"route deviation: {agent_dict['name']}_{agent_dict['id']}")
 					destination = agent_dict['route'][-1][0].transform.location
 					agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), destination)
 				
@@ -647,27 +655,9 @@ def game_loop(args):
 						agent_dict['done'] = 1
 						new_destination = random.choice(spawn_points).location
 						agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), new_destination)
-			
-			for agent_dict in ego_agent_list:                            
-				# regenerate a route when the agent deviates from the current route
-				if not check_close(agent_dict['agent'].get_location(), agent_dict['route'][0][0].transform.location, 6):
-					print(f"route deviation: {agent_dict['name']}_{agent_dict['id']}")
-					destination = agent_dict['route'][-1][0].transform.location
-					agent_dict['route'] = planner.trace_route(agent_dict['agent'].get_location(), destination)
-				
-				# Delete reached points from current route
-				while check_close(agent_dict['agent'].get_location(), agent_dict['route'][0][0].transform.location):
-					agent_dict['route'].pop(0)
-					if len(agent_dict['route']) == 0:
-						print(f"route complete: {agent_dict['name']}_{agent_dict['id']}")
-						agent_dict['done'] = 1
-						new_destination = random.choice(spawn_points).location
-						agent_dict['route'] = planner.trace_route(agent_dict['agent'].get_location(), new_destination)
-
 
 			################### Prepare input for each agent. #####################
 			t_list = []
-			all_agent_list = interactive_agent_list + ego_agent_list
 			for agent_dict in all_agent_list:
 				if agent_dict['name'] == 'roach':
 					route_list = [wp[0].transform.location for wp in agent_dict['route'][0:60]]
@@ -751,18 +741,16 @@ def game_loop(args):
 	
 		################### Compute number of collision. #####################
 		collision_count = 0
-		for agent_dict in ego_agent_list:
+		for agent_dict in all_agent_list:
 			id_record = {}
-			
-			for idx, frame in enumerate(agent_dict['collision'].frame_history):
-				ids = agent_dict['collision'].id_history[idx]
-				for id in ids:
-					if id in id_record and (frame - id_record[id])/fps > 1:
-						collision_count += 1
-					id_record[id] = frame
-			collision_count += len(id_record)
-
-			logging.debug(f"Collisions: {collision_count}")
+			if 'collision' in agent_dict:
+				for idx, frame in enumerate(agent_dict['collision'].frame_history):
+					ids = agent_dict['collision'].id_history[idx]
+					for id in ids:
+						if id in id_record and (frame - id_record[id])/fps > 1:
+							collision_count += 1
+						id_record[id] = frame
+				collision_count += len(id_record)
 	
 		logging.info(f"Simulation time: {finish_time}")			
 		logging.debug("Destroy env")
@@ -779,7 +767,7 @@ def game_loop(args):
 		client.apply_batch([carla.command.DestroyActor(x['agent']) for x in all_agent_list])
 		world.destroy()
 		del all_agent_list
-		del ego_agent_list
+		del e2e_agent_list
 		del interactive_agent_list                
 		del client
 		del world
@@ -791,16 +779,22 @@ def game_loop(args):
 			success = False
 		else:
 			success = True
+
+		score = 1.0/(1+(finish_time/30)*(collision_count+1))
+		score2 = (1/(1+collision_count)) * max(0, (1 - finish_time/30))
 		result = {
 			"Index": scenario_index,
 			"Collisions": collision_count,
-			"Completion time": finish_time,
-			"Success": success
+			"Completion Time": finish_time,
+			"Success": success,
+			"Interaction Score": score,
+			"Interaction Score2": score2
 		}
+
 		checkpoint['records'].append(result)
 		checkpoint['progress'][0] = scenario_index + 1
 		with open(args.checkpoint, 'w') as fd:
-			json.dump(checkpoint, fd, indent=4, sort_keys=True)
+			json.dump(checkpoint, fd, indent=2, sort_keys=True)
 		
 		if len(image_buffer) > 0:
 			image_buffer[0].save(
@@ -813,9 +807,27 @@ def game_loop(args):
 		
 		pygame.quit()
 		logging.debug(f"Finish scenario{scenario_index}")
-     
-				
+  
+	avg_completion_time = 0
+	avg_score = 0
+	success_rate = 0
+	for record in checkpoint['records']:
+		avg_completion_time += record['Completion Time']
+		avg_score += record['Interaction Score']
+		success_rate += record['Success']
 
+	avg_completion_time /= len(checkpoint['records'])
+	avg_score /= len(checkpoint['records'])
+	success_rate /= len(checkpoint['records'])
+	checkpoint['global_record'] = {
+		"Avg Completion Time": avg_completion_time,
+		"Avg Interaction Score": avg_score,
+		"Success Rate": success_rate
+	}
+
+	with open(args.checkpoint, 'w') as fd:
+			json.dump(checkpoint, fd, indent=2, sort_keys=True)
+   
 
 # ==============================================================================
 # -- main() --------------------------------------------------------------------
@@ -860,7 +872,7 @@ def main():
 		type=str,
 		help='Path to evaluation config')
 	argparser.add_argument(
-		'--ego_agent',
+		'--e2e_agent',
 		default='roach',
 		type=str,
 		help='Path ego agent entry')

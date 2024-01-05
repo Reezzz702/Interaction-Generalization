@@ -7,11 +7,11 @@ export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI/carla
 export PYTHONPATH=$PYTHONPATH:$CARLA_ROOT/PythonAPI/carla/dist/carla-0.9.14-py3.7-linux-x86_64.egg
 export PYTHONPATH=$PYTHONPATH:${WORK_DIR}/team_code
 
-export EGO_AGNET=${WORK_DIR}/SRL_agent
+export E2E_AGNET=${WORK_DIR}/SRL_agent
 export AGENT_CONFIG=${WORK_DIR}/checkpoints/tfpp_wp
 export DIRECT=0
-export CHECKPOINT_ENDPOINT=${WORK_DIR}/results/PlanT/interaction.json
-export SAVE_PATH=${WORK_DIR}/results/PlanT
+export CHECKPOINT_ENDPOINT=${WORK_DIR}/results/Autopilot/interaction.json
+export SAVE_PATH=${WORK_DIR}/results/Autopilot
 
 
 killall -9 -r CarlaUE4-Linux 
@@ -20,7 +20,7 @@ bash ${CARLA_ROOT}/CarlaUE4.sh &
 sleep 5
 
 python multi_agent_eval.py \
---ego_agent=${EGO_AGNET} \
+--e2e_agent=${E2E_AGNET} \
 --agent_config=${AGENT_CONFIG} \
 --checkpoint=${CHECKPOINT_ENDPOINT} \
 
