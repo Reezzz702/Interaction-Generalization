@@ -1,0 +1,89 @@
+{
+  "available_scenarios": 
+  [
+    {
+      "Town": "Town04",
+      "agent": ["auto", "auto"],
+      "start": ["E1", "A1"],
+      "dest": ["A3", "C3"]
+    },
+    {
+      "Town": "Town04",
+      "agent": ["auto", "auto"],
+      "start": ["E1", "A1"],
+      "dest": ["A3", "A3"]
+    },
+    {
+      "Town": "Town04",
+      "agent": ["auto", "auto"],
+      "start": ["E1", "B1"],
+      "dest": ["A3", "B3"]
+    },
+    {
+      "Town": "Town04",
+      "agent": ["auto", "auto"],
+      "start": ["E1", "B1"],
+      "dest": ["A3", "E3"]
+    },
+    {
+      "Town": "Town04",
+      "agent": ["auto", "auto"],
+      "start": ["E1", "C1"],
+      "dest": ["A3", "C3"]
+    },
+    {
+      "Town": "Town04",
+      "agent": ["auto", "auto"],
+      "start": ["E1", "C1"],
+      "dest": ["A3", "A3"]
+    },
+    {
+      "Town": "Town04",
+      "agent": ["auto", "auto"],
+      "start": ["E1", "A1"],
+      "dest": ["E3", "C3"]
+    },
+    {
+      "Town": "Town04",
+      "agent": ["auto", "auto"],
+      "start": ["E1", "A1"],
+      "dest": ["E3", "A3"]
+    },
+    {
+      "Town": "Town04",
+      "agent": ["auto", "auto"],
+      "start": ["E1", "A1"],
+      "dest": ["E3", "E3"]
+    },
+    {
+      "Town": "Town04",
+      "agent": ["auto", "auto"],
+      "start": ["E1", "B1"],
+      "dest": ["E3", "B3"]
+    },
+    {
+      "Town": "Town04",
+      "agent": ["auto", "auto"],
+      "start": ["E1", "B1"],
+      "dest": ["E3", "E3"]
+    },
+    {
+      "Town": "Town04",
+      "agent": ["auto", "auto"],
+      "start": ["E1", "C1"],
+      "dest": ["E3", "B3"]
+    },
+    {
+      "Town": "Town04",
+      "agent": ["auto", "auto"],
+      "start": ["E1", "B1"],
+      "dest": ["B3", "B3"]
+    },
+    {
+      "Town": "Town04",
+      "agent": ["auto", "auto"],
+      "start": ["E1", "C1"],
+      "dest": ["B3", "B3"]
+    }
+  ]
+}

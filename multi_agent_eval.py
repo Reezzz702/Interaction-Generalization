@@ -79,12 +79,13 @@ class World(object):
 
 		try:
 			self.map = self.world.get_map()
+			self.town = self.map.name.split('/')[-1]
 		except RuntimeError as error:
 			print('RuntimeError: {}'.format(error))
 			print('  The server could not send the OpenDRIVE (.xodr) file:')
 			print('  Make sure it exists, has the same name of your town, and is correct.')
 			sys.exit(1)
-
+		
 		self.world.unload_map_layer(carla.MapLayer.Buildings)     
 		self.world.unload_map_layer(carla.MapLayer.Decals)     
 		self.world.unload_map_layer(carla.MapLayer.Foliage)     
@@ -107,8 +108,8 @@ class World(object):
   
 		self.sensor_spec = [{
 				'type': 'sensor.camera.rgb',
-        'x': 29.550,
-        'y': 0.85,
+        'x': assigned_location_dict[self.town]['center'][0],
+        'y': assigned_location_dict[self.town]['center'][1],
         'z': 50,
         'roll': 0,
         'pitch': -90,
@@ -438,6 +439,7 @@ def check_close(ev_loc, loc0, distance = 3):
 
 def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 	map = world.get_map()
+	town = map.name.split('/')[-1]
 	agent_list = scenario['agent']
 	start_list = scenario['start']
 	dest_list = scenario['dest']
@@ -447,26 +449,35 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 
 	for i, agent in enumerate(agent_list):
 		agent_dict = {}
-		spawn_trans = carla.Transform(carla.Location(assigned_location_dict[start_list[i]][0], assigned_location_dict[start_list[i]][1]))
+		spawn_trans = carla.Transform(carla.Location(assigned_location_dict[town][start_list[i]][0], assigned_location_dict[town][start_list[i]][1]))
 		spawn_trans.location.z += 2.0
 		spawn_trans.rotation.roll = 0.0
 		spawn_trans.rotation.pitch = 0.0
 		
-		#####################  determine yaws by comparing the relative positions of spawn points and the center point ################
-		x_diff = assigned_location_dict['center'][0] - assigned_location_dict[start_list[i]][0]
-		y_diff = assigned_location_dict['center'][1] - assigned_location_dict[start_list[i]][1]
+		# #####################  determine yaws by comparing the relative positions of spawn points and the center point ################
+		# x_diff = assigned_location_dict[town][dest_list[i]][0] - assigned_location_dict[town][start_list[i]][0]
+		# y_diff = assigned_location_dict[town][dest_list[i]][1] - assigned_location_dict[town][start_list[i]][1]
 
-		if x_diff < 0 and y_diff < 0:
-			spawn_trans.rotation.yaw = 270
-		elif x_diff > 0 and y_diff < 0:
+		# if x_diff < 0 and y_diff < 0:
+		# 	spawn_trans.rotation.yaw = 270
+		# elif x_diff > 0 and y_diff < 0:
+		# 	spawn_trans.rotation.yaw = 0
+		# elif x_diff < 0 and y_diff > 0:
+		# 	spawn_trans.rotation.yaw = 180
+		# else:
+		# 	spawn_trans.rotation.yaw = 90
+  
+		if start_list[i].startswith("E"):
 			spawn_trans.rotation.yaw = 0
-		elif x_diff < 0 and y_diff > 0:
-			spawn_trans.rotation.yaw = 180
-		else:
+		elif start_list[i].startswith("A"):
+			spawn_trans.rotation.yaw = 270
+		elif start_list[i].startswith("B"):
 			spawn_trans.rotation.yaw = 90
-
+		elif start_list[i].startswith("C"):
+			spawn_trans.rotation.yaw = 180
+   
 		####################  set up the locations of destinations, the locations will later be used to calculate A* routes by planner ################
-		dest_trans = carla.Location(assigned_location_dict[dest_list[i]][0], assigned_location_dict[dest_list[i]][1])
+		dest_trans = carla.Location(assigned_location_dict[town][dest_list[i]][0], assigned_location_dict[town][dest_list[i]][1])
 		
 		# get blueprint from world
 		blueprint = world.get_blueprint_library().find('vehicle.lincoln.mkz_2017')
@@ -508,7 +519,8 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 		else:
 			if agent == 'roach':            
 				# Initialize roach agent
-				roach_agent = BEV_MAP(map.name.split('/')[-1])
+				# roach_agent = BEV_MAP(map.name.split('/')[-1])
+				roach_agent = BEV_MAP(town)
 				roach_agent.init_vehicle_bbox(carla_agent.id)
 				roach_agent.set_policy(roach_policy)
 				agent_dict['model'] = roach_agent
@@ -534,24 +546,38 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 	return e2e_agent_list, interactive_agent_list
 
 
-assigned_location_dict = {'E1': (13.700, 2.600),
-						'E2': (13.700, 6.000),
-						'E3': (47.200, 1.800),
-						'E4': (47.200, 5.100),
-						'A1': (31.600, 18.100),
-						'A2': (35.100, 18.100),
-						'A3': (31.400, -18.100),
-						'A4': (34.900, -18.100),
-						'B1': (27.900, -18.100),
-						'B2': (24.400, -18.100),
-						'B3': (28.200, 18.100),
-						'B4': (24.600, 18.100),
-						'C1': (47.200, -1.700),
-						'C2': (47.200, -5.200),
-						'C3': (10.700, -0.900),
-						'C4': (10.700, -4.400),
-						'center': (29.550, 0.85)
-						}
+assigned_location_dict = {
+  'Town05':{
+		'E1': (13.700, 2.600),
+		'E2': (13.700, 6.000),
+		'E3': (47.200, 1.800),
+		'E4': (47.200, 5.100),
+		'A1': (31.600, 18.100),
+		'A2': (35.100, 18.100),
+		'A3': (31.400, -18.100),
+		'A4': (34.900, -18.100),
+		'B1': (27.900, -18.100),
+		'B2': (24.400, -18.100),
+		'B3': (28.200, 18.100),
+		'B4': (24.600, 18.100),
+		'C1': (47.200, -1.700),
+		'C2': (47.200, -5.200),
+		'C3': (10.700, -0.900),
+		'C4': (10.700, -4.400),
+		'center': (29.550, 0.85)
+	},
+	'Town04':{
+		'E1': (241.9, -246.0),
+		'E3': (270.9, -246.0),
+		'A1': (258.8, -234.4),
+		'A3': (258.8, -261.8),
+		'B1': (255.1, -261.8),
+		'B3': (255.1, -234.4),
+		'C1': (270.9, -249.7),
+		'C3': (241.9, -249.7),
+		'center': (257.0, -247.4)
+	}
+}
 
 
 # ==============================================================================
