@@ -519,7 +519,6 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 		else:
 			if agent == 'roach':            
 				# Initialize roach agent
-				# roach_agent = BEV_MAP(map.name.split('/')[-1])
 				roach_agent = BEV_MAP(town)
 				roach_agent.init_vehicle_bbox(carla_agent.id)
 				roach_agent.set_policy(roach_policy)
@@ -568,12 +567,12 @@ assigned_location_dict = {
 	},
 	'Town04':{
 		'E1': (241.9, -246.0),
-		'E3': (270.9, -246.0),
+		'E3': (275.9, -246.0),
 		'A1': (258.8, -234.4),
 		'A3': (258.8, -261.8),
-		'B1': (255.1, -261.8),
-		'B3': (255.1, -234.4),
-		'C1': (270.9, -249.7),
+		'B1': (255.1, -260.8),
+		'B3': (255.1, -226.8),
+		'C1': (265.9, -249.7),
 		'C3': (241.9, -249.7),
 		'center': (257.0, -247.4)
 	}
@@ -587,12 +586,13 @@ def game_loop(args):
 	f = open(args.eval_config)
 	eval_config = json.load(f)
 	checkpoint = parse_checkpoint(args.checkpoint)
-	if checkpoint['progress']:
+	num_scenarios = len(eval_config['available_scenarios'])
+	if checkpoint['progress'] and bool(args.resume):
 		resume = checkpoint['progress'][0]
-		if resume == len(eval_config["available_scenarios"]):
+		if resume == num_scenarios:
 			return
 	else:
-		checkpoint['progress'].extend([0, len(eval_config["available_scenarios"])])
+		checkpoint['progress'] = [0, num_scenarios]
 		resume = 0
   
 	save_path = os.environ.get('SAVE_PATH', None)
@@ -634,7 +634,7 @@ def game_loop(args):
 			global_roach = BEV_MAP(town)
 			global_roach.init_vehicle_bbox(world.player.id)
 			global_roach_policy = global_roach.init_policy()
-			
+
 		e2e_agent_list, interactive_agent_list = init_multi_agent(args, world.world, planner, scenario, global_roach_policy)
 		start_frame = None
 
@@ -677,7 +677,7 @@ def game_loop(args):
 				while check_close(agent_dict["agent"].get_location(), agent_dict['route'][0][0].transform.location):
 					agent_dict['route'].pop(0)
 					if len(agent_dict['route']) == 0:
-						print(f"route complete: {agent_dict['name']}_{agent_dict['id']}")
+						logging.info(f"route complete: {agent_dict['name']}_{agent_dict['id']}")
 						agent_dict['done'] = 1
 						new_destination = random.choice(spawn_points).location
 						agent_dict['route'] = planner.trace_route(agent_dict["agent"].get_location(), new_destination)
@@ -837,18 +837,23 @@ def game_loop(args):
 	avg_completion_time = 0
 	avg_score = 0
 	success_rate = 0
+	collision_rate = 0
 	for record in checkpoint['records']:
 		avg_completion_time += record['Completion Time']
 		avg_score += record['Interaction Score']
 		success_rate += record['Success']
-
-	avg_completion_time /= len(checkpoint['records'])
-	avg_score /= len(checkpoint['records'])
-	success_rate /= len(checkpoint['records'])
-	checkpoint['global_record'] = {
+		collision_rate += record['Collisions']
+	
+	
+	avg_completion_time /= num_scenarios
+	avg_score /= num_scenarios
+	success_rate /= num_scenarios
+	collision_rate /= num_scenarios
+	checkpoint['global record'] = {
 		"Avg Completion Time": avg_completion_time,
 		"Avg Interaction Score": avg_score,
-		"Success Rate": success_rate
+		"Success Rate": success_rate,
+		"Collision Rate": collision_rate
 	}
 
 	with open(args.checkpoint, 'w') as fd:
@@ -924,12 +929,12 @@ def main():
 	argparser.add_argument(
    	'--resume',
 		default='1',
-		type=bool,
+		type=int,
 		help='Weather to resume the evaluation from checkpoint, default is set to True')
 	argparser.add_argument(
    	'--record',
 		default='1',
-		type=bool,
+		type=int,
 		help='Weather to record video and save in SAVE_PATH/gifs')
 	args = argparser.parse_args()
 

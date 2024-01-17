@@ -1,5 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+*/__pycache__/
 
 *.py[cod]
 *$py.class
@@ -163,3 +164,4 @@ test.py
 /checkpoints
 /results.json
 /results
+test.json
