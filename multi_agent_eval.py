@@ -68,7 +68,7 @@ def find_weather_presets():
 # -- World ---------------------------------------------------------------------
 # ==============================================================================
 class World(object):
-	def __init__(self, carla_world, hud, args):
+	def __init__(self, carla_world, hud, args, center):
 		self.world = carla_world
 		settings = self.world.get_settings()
 		settings.fixed_delta_seconds = 0.05
@@ -108,12 +108,12 @@ class World(object):
   
 		self.sensor_spec = [{
 				'type': 'sensor.camera.rgb',
-        'x': assigned_location_dict[self.town]['center'][0],
-        'y': assigned_location_dict[self.town]['center'][1],
+        'x': center[0],
+        'y': center[1],
         'z': 50,
         'roll': 0,
         'pitch': -90,
-        'yaw': 0,
+        'yaw': center[2],
         'width': 512,
         'height': 512,
         'fov': 60,
@@ -440,44 +440,23 @@ def check_close(ev_loc, loc0, distance = 3):
 def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 	map = world.get_map()
 	town = map.name.split('/')[-1]
-	agent_list = scenario['agent']
-	start_list = scenario['start']
-	dest_list = scenario['dest']
+	agent_list = [scenario['ego_agent']]
+	agent_list.extend(scenario['other_agents'])
 	e2e_agent_list = []
 	interactive_agent_list = []
-	ego_type = agent_list[0]
+	ego_type = agent_list[0]['type']
 
 	for i, agent in enumerate(agent_list):
 		agent_dict = {}
-		spawn_trans = carla.Transform(carla.Location(assigned_location_dict[town][start_list[i]][0], assigned_location_dict[town][start_list[i]][1]))
+		spawn_trans = carla.Transform(carla.Location(agent['start'][0], agent['start'][1]))
 		spawn_trans.location.z += 2.0
 		spawn_trans.rotation.roll = 0.0
 		spawn_trans.rotation.pitch = 0.0
-		
-		# #####################  determine yaws by comparing the relative positions of spawn points and the center point ################
-		# x_diff = assigned_location_dict[town][dest_list[i]][0] - assigned_location_dict[town][start_list[i]][0]
-		# y_diff = assigned_location_dict[town][dest_list[i]][1] - assigned_location_dict[town][start_list[i]][1]
-
-		# if x_diff < 0 and y_diff < 0:
-		# 	spawn_trans.rotation.yaw = 270
-		# elif x_diff > 0 and y_diff < 0:
-		# 	spawn_trans.rotation.yaw = 0
-		# elif x_diff < 0 and y_diff > 0:
-		# 	spawn_trans.rotation.yaw = 180
-		# else:
-		# 	spawn_trans.rotation.yaw = 90
   
-		if start_list[i].startswith("E"):
-			spawn_trans.rotation.yaw = 0
-		elif start_list[i].startswith("A"):
-			spawn_trans.rotation.yaw = 270
-		elif start_list[i].startswith("B"):
-			spawn_trans.rotation.yaw = 90
-		elif start_list[i].startswith("C"):
-			spawn_trans.rotation.yaw = 180
+		spawn_trans.rotation.yaw = agent['yaw']
    
 		####################  set up the locations of destinations, the locations will later be used to calculate A* routes by planner ################
-		dest_trans = carla.Location(assigned_location_dict[town][dest_list[i]][0], assigned_location_dict[town][dest_list[i]][1])
+		dest_trans = carla.Location(agent['dest'][0], agent['dest'][1])
 		
 		# get blueprint from world
 		blueprint = world.get_blueprint_library().find('vehicle.lincoln.mkz_2017')
@@ -501,7 +480,7 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 			print("Spawn failed because of collision at spawn position")
 
   
-		if agent == "e2e":
+		if agent['type'] == "e2e":
 			# Load agent
 			module_name = os.path.basename(args.e2e_agent).split('.')[0]
 			sys.path.insert(0, os.path.dirname(args.e2e_agent))
@@ -513,30 +492,30 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 			agent_dict['name'] = 'e2e'
 			sensor_spec_list = e2e_agent.sensors()
 			agent_dict['sensors'] = SensorManager(carla_agent, sensor_spec_list)
-			if agent == ego_type:
+			if agent['type'] == ego_type:
 				agent_dict['collision'] = CollisionSensor(carla_agent)
 			e2e_agent_list.append(agent_dict)
 		else:
-			if agent == 'roach':            
+			if agent['type'] == 'roach': 
 				# Initialize roach agent
 				roach_agent = BEV_MAP(town)
 				roach_agent.init_vehicle_bbox(carla_agent.id)
 				roach_agent.set_policy(roach_policy)
 				agent_dict['model'] = roach_agent
 				agent_dict['name'] = agent
-				if agent == ego_type:
+				if agent['type'] == ego_type:
 					agent_dict['collision'] = CollisionSensor(carla_agent)
-			if agent == "plant":
+			if agent['type'] == "plant":
 				plant_agent = PlanTAgent(carla_agent, world, args.plant_config)
 				agent_dict['model'] = plant_agent   
 				agent_dict['name'] = 'plant' 
-				if agent == ego_type:
+				if agent['type'] == ego_type:
 					agent_dict['collision'] = CollisionSensor(carla_agent)
-			if agent == "auto":
+			if agent['type'] == "auto":
 				auto_agent = AutoPilot(carla_agent, world, route)
 				agent_dict['model'] = auto_agent   
 				agent_dict['name'] = 'auto' 
-				if agent == ego_type:
+				if agent['type'] == ego_type:
 					agent_dict['collision'] = CollisionSensor(carla_agent)
 			
 			interactive_agent_list.append(agent_dict)                
@@ -618,7 +597,7 @@ def game_loop(args):
 		pygame.display.flip()
 		
 		hud = HUD(args.width, args.height, args.distance, town)
-		world = World(client.load_world(town), hud, args)
+		world = World(client.load_world(town), hud, args, scenario['center'])
 		avg_FPS = 0
 		clock = pygame.time.Clock()
 
@@ -628,12 +607,9 @@ def game_loop(args):
 		planner = GlobalRoutePlanner(map, sampling_resolution=1.0)                
 
 		# Initialize a global roach for all roach agent to avoid generating multipile HD maps
-		global_roach = None
-		global_roach_policy = None
-		if 'roach' in scenario['agent']:
-			global_roach = BEV_MAP(town)
-			global_roach.init_vehicle_bbox(world.player.id)
-			global_roach_policy = global_roach.init_policy()
+		global_roach = BEV_MAP(town)
+		global_roach.init_vehicle_bbox(world.player.id)
+		global_roach_policy = global_roach.init_policy()
 
 		e2e_agent_list, interactive_agent_list = init_multi_agent(args, world.world, planner, scenario, global_roach_policy)
 		start_frame = None
