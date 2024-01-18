@@ -502,21 +502,18 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 				roach_agent.init_vehicle_bbox(carla_agent.id)
 				roach_agent.set_policy(roach_policy)
 				agent_dict['model'] = roach_agent
-				agent_dict['name'] = agent
-				if agent['type'] == ego_type:
-					agent_dict['collision'] = CollisionSensor(carla_agent)
+				agent_dict['name'] = 'roach'
 			if agent['type'] == "plant":
 				plant_agent = PlanTAgent(carla_agent, world, args.plant_config)
 				agent_dict['model'] = plant_agent   
 				agent_dict['name'] = 'plant' 
-				if agent['type'] == ego_type:
-					agent_dict['collision'] = CollisionSensor(carla_agent)
 			if agent['type'] == "auto":
 				auto_agent = AutoPilot(carla_agent, world, route)
 				agent_dict['model'] = auto_agent   
 				agent_dict['name'] = 'auto' 
-				if agent['type'] == ego_type:
-					agent_dict['collision'] = CollisionSensor(carla_agent)
+
+			if agent['type'] == ego_type:
+				agent_dict['collision'] = CollisionSensor(carla_agent)
 			
 			interactive_agent_list.append(agent_dict)                
 
