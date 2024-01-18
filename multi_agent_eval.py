@@ -564,7 +564,7 @@ assigned_location_dict = {
 def game_loop(args):
 	f = open(args.eval_config)
 	eval_config = json.load(f)
-	checkpoint = parse_checkpoint(args.checkpoint)
+	checkpoint = parse_checkpoint(args.checkpoint, args.resume)
 	num_scenarios = len(eval_config['available_scenarios'])
 	if checkpoint['progress'] and bool(args.resume):
 		resume = checkpoint['progress'][0]

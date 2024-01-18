@@ -7,13 +7,13 @@ export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI/carla
 export PYTHONPATH=$PYTHONPATH:$CARLA_ROOT/PythonAPI/carla/dist/carla-0.9.14-py3.7-linux-x86_64.egg
 export PYTHONPATH=$PYTHONPATH:${WORK_DIR}/team_code
 
-export EVAL_CONFIG=${WORK_DIR}/eval_config/1to1/test.json
+export EVAL_CONFIG=${WORK_DIR}/eval_config/1toM/test.json
 export E2E_AGNET=${WORK_DIR}/SRL_agent
 export AGENT_CONFIG=${WORK_DIR}/checkpoints/tfpp_wp
 export DIRECT=0
 export RESUME=0
-export CHECKPOINT_ENDPOINT=${WORK_DIR}/results/1toM/test/interaction.json
-export SAVE_PATH=${WORK_DIR}/results/1toM/test
+export CHECKPOINT_ENDPOINT=${WORK_DIR}/results/1toM/auto_PlanT/interaction.json
+export SAVE_PATH=${WORK_DIR}/results/1toM/auto_PlanT
 
 
 killall -9 -r CarlaUE4-Linux 
