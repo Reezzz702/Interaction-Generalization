@@ -12,8 +12,8 @@ export E2E_AGNET=${WORK_DIR}/SRL_agent
 export AGENT_CONFIG=${WORK_DIR}/checkpoints/tfpp_wp
 export DIRECT=0
 export RESUME=0
-export CHECKPOINT_ENDPOINT=${WORK_DIR}/results/1toM/auto_Roach/interaction.json
-export SAVE_PATH=${WORK_DIR}/results/1toM/auto_Roach
+export CHECKPOINT_ENDPOINT=${WORK_DIR}/results/1toM/TFPP_roach/interaction.json
+export SAVE_PATH=${WORK_DIR}/results/1toM/TFPP_roach
 
 
 killall -9 -r CarlaUE4-Linux 

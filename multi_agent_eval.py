@@ -492,8 +492,7 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 			agent_dict['name'] = 'e2e'
 			sensor_spec_list = e2e_agent.sensors()
 			agent_dict['sensors'] = SensorManager(carla_agent, sensor_spec_list)
-			if agent['type'] == ego_type:
-				agent_dict['collision'] = CollisionSensor(carla_agent)
+			agent_dict['collision'] = CollisionSensor(carla_agent)
 			e2e_agent_list.append(agent_dict)
 		else:
 			if agent['type'] == 'roach': 
@@ -512,8 +511,7 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 				agent_dict['model'] = auto_agent   
 				agent_dict['name'] = 'auto' 
 
-			if agent['type'] == ego_type:
-				agent_dict['collision'] = CollisionSensor(carla_agent)
+			agent_dict['collision'] = CollisionSensor(carla_agent)
 			
 			interactive_agent_list.append(agent_dict)                
 
@@ -742,14 +740,13 @@ def game_loop(args):
 		collision_count = 0
 		for agent_dict in all_agent_list:
 			id_record = {}
-			if 'collision' in agent_dict:
-				for idx, frame in enumerate(agent_dict['collision'].frame_history):
-					ids = agent_dict['collision'].id_history[idx]
-					for id in ids:
-						if id in id_record and (frame - id_record[id])/fps > 1:
-							collision_count += 1
-						id_record[id] = frame
-				collision_count += len(id_record)
+			for idx, frame in enumerate(agent_dict['collision'].frame_history):
+				ids = agent_dict['collision'].id_history[idx]
+				for id in ids:
+					if id in id_record and (frame - id_record[id])/fps > 1:
+						collision_count += 1
+					id_record[id] = frame
+			collision_count += len(id_record)
 	
 		logging.info(f"Simulation time: {finish_time}")			
 		logging.debug("Destroy env")
@@ -779,15 +776,11 @@ def game_loop(args):
 		else:
 			success = True
 
-		score = 1.0/(1+(finish_time/30)*(collision_count+1))
-		score2 = (1/(1+collision_count)) * max(0, (1 - finish_time/30))
 		result = {
 			"Index": scenario_index,
-			"Collisions": collision_count,
+			"Collisions": collision_count/2,
 			"Completion Time": finish_time,
 			"Success": success,
-			"Interaction Score": score,
-			"Interaction Score2": score2
 		}
 
 		checkpoint['records'].append(result)
@@ -808,25 +801,21 @@ def game_loop(args):
 		logging.debug(f"Finish scenario{scenario_index}")
   
 	avg_completion_time = 0
-	avg_score = 0
 	success_rate = 0
 	collision_rate = 0
 	for record in checkpoint['records']:
 		avg_completion_time += record['Completion Time']
-		avg_score += record['Interaction Score']
 		success_rate += record['Success']
 		collision_rate += record['Collisions']
 	
 	
 	avg_completion_time /= num_scenarios
-	avg_score /= num_scenarios
 	success_rate /= num_scenarios
 	collision_rate /= num_scenarios
 	checkpoint['global record'] = {
-		"Avg Completion Time": avg_completion_time,
-		"Avg Interaction Score": avg_score,
-		"Success Rate": success_rate,
-		"Collision Rate": collision_rate
+		"Avg Completion Time": round(avg_completion_time, 2),
+		"Success Rate": round(success_rate*100, 2),
+		"Collision Rate": round(collision_rate, 2)
 	}
 
 	with open(args.checkpoint, 'w') as fd:
