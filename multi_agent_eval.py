@@ -442,9 +442,8 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 	town = map.name.split('/')[-1]
 	agent_list = [scenario['ego_agent']]
 	agent_list.extend(scenario['other_agents'])
-	e2e_agent_list = []
+	sensor_agent_list = []
 	interactive_agent_list = []
-	ego_type = agent_list[0]['type']
 
 	for i, agent in enumerate(agent_list):
 		agent_dict = {}
@@ -479,21 +478,22 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 		except:
 			print("Spawn failed because of collision at spawn position")
 
+		if i == 0:
+			agent_dict['collision'] = CollisionSensor(carla_agent)
   
-		if agent['type'] == "e2e":
+		if agent['type'] == "sensor":
 			# Load agent
-			module_name = os.path.basename(args.e2e_agent).split('.')[0]
-			sys.path.insert(0, os.path.dirname(args.e2e_agent))
+			module_name = os.path.basename(args.sensor_agent).split('.')[0]
+			sys.path.insert(0, os.path.dirname(args.sensor_agent))
 			module_agent = importlib.import_module(module_name)
 			agent_class_name = getattr(module_agent, 'get_entry_point')()
-			e2e_agent = getattr(module_agent, agent_class_name)(actor=carla_agent, path_to_config=args.agent_config)
+			sensor_agent = getattr(module_agent, agent_class_name)(actor=carla_agent, path_to_config=args.agent_config)
    
-			agent_dict['model'] = e2e_agent
-			agent_dict['name'] = 'e2e'
-			sensor_spec_list = e2e_agent.sensors()
+			agent_dict['model'] = sensor_agent
+			agent_dict['name'] = 'sensor'
+			sensor_spec_list = sensor_agent.sensors()
 			agent_dict['sensors'] = SensorManager(carla_agent, sensor_spec_list)
-			agent_dict['collision'] = CollisionSensor(carla_agent)
-			e2e_agent_list.append(agent_dict)
+			sensor_agent_list.append(agent_dict)
 		else:
 			if agent['type'] == 'roach': 
 				# Initialize roach agent
@@ -510,13 +510,11 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 				auto_agent = AutoPilot(carla_agent, world, route)
 				agent_dict['model'] = auto_agent   
 				agent_dict['name'] = 'auto' 
-
-			agent_dict['collision'] = CollisionSensor(carla_agent)
 			
 			interactive_agent_list.append(agent_dict)                
 
 	
-	return e2e_agent_list, interactive_agent_list
+	return sensor_agent_list, interactive_agent_list
 
 
 assigned_location_dict = {
@@ -606,7 +604,7 @@ def game_loop(args):
 		global_roach.init_vehicle_bbox(world.player.id)
 		global_roach_policy = global_roach.init_policy()
 
-		e2e_agent_list, interactive_agent_list = init_multi_agent(args, world.world, planner, scenario, global_roach_policy)
+		sensor_agent_list, interactive_agent_list = init_multi_agent(args, world.world, planner, scenario, global_roach_policy)
 		start_frame = None
 
 		if save_path and args.record:
@@ -635,7 +633,7 @@ def game_loop(args):
 			if global_roach:
 				processed_data = global_roach.collect_actor_data(world)
 			
-			all_agent_list = interactive_agent_list + e2e_agent_list
+			all_agent_list = interactive_agent_list + sensor_agent_list
 			################### Check every agent route and generate new one if needed. #####################
 			for agent_dict in all_agent_list:                        
 				# regenerate a route when the agent deviates from the current route
@@ -676,7 +674,7 @@ def game_loop(args):
 					tick_data = agent_dict['model'].tick(agent_dict)
 					inputs = [tick_data, agent_dict]
 				
-				if agent_dict['name'] == 'e2e':
+				if agent_dict['name'] == 'sensor':
 					route_list = [wp for wp in agent_dict['route'][0:60]]
 					if args.debug:
 						for w, _ in route_list:
@@ -740,13 +738,14 @@ def game_loop(args):
 		collision_count = 0
 		for agent_dict in all_agent_list:
 			id_record = {}
-			for idx, frame in enumerate(agent_dict['collision'].frame_history):
-				ids = agent_dict['collision'].id_history[idx]
-				for id in ids:
-					if id in id_record and (frame - id_record[id])/fps > 1:
-						collision_count += 1
-					id_record[id] = frame
-			collision_count += len(id_record)
+			if 'collision' in agent_dict:
+				for idx, frame in enumerate(agent_dict['collision'].frame_history):
+					ids = agent_dict['collision'].id_history[idx]
+					for id in ids:
+						if id in id_record and (frame - id_record[id])/fps > 1:
+							collision_count += 1
+						id_record[id] = frame
+				collision_count += len(id_record)
 	
 		logging.info(f"Simulation time: {finish_time}")			
 		logging.debug("Destroy env")
@@ -763,7 +762,7 @@ def game_loop(args):
 		client.apply_batch([carla.command.DestroyActor(x['agent']) for x in all_agent_list])
 		world.destroy()
 		del all_agent_list
-		del e2e_agent_list
+		del sensor_agent_list
 		del interactive_agent_list                
 		del client
 		del world
@@ -778,7 +777,7 @@ def game_loop(args):
 
 		result = {
 			"Index": scenario_index,
-			"Collisions": collision_count/2,
+			"Collisions": collision_count,
 			"Completion Time": finish_time,
 			"Success": success,
 		}
@@ -865,7 +864,7 @@ def main():
 		type=str,
 		help='Path to evaluation config')
 	argparser.add_argument(
-		'--e2e_agent',
+		'--sensor_agent',
 		default='roach',
 		type=str,
 		help='Path ego agent entry')
