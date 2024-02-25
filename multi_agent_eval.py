@@ -19,7 +19,7 @@ import glob
 import os
 import sys
 try:
-	sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
+	sys.path.append(glob.glob('/home/hcis-s15/Documents/Homework/IDS_s24/HW0/carla_14/PythonAPI/carla/dist/carla-*%d.%d-%s.egg' % (
 		sys.version_info.major,
 		sys.version_info.minor,
 		'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
@@ -41,10 +41,12 @@ import math
 import pygame
 import random
 import re
+import numpy as np
 import time
 
 from autopilot import AutoPilot
-from agents.navigation.global_route_planner import GlobalRoutePlanner
+from agents.navigation.global_route_planner import GlobalRoutePlanner, get_proxy_route
+from agents.navigation.new_planner import NewPlanner
 from roach_agent import BEV_MAP
 from threading import Thread
 from sensors import SensorManager, CollisionSensor, get_actor_display_name
@@ -471,13 +473,21 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 			agent_dict['id'] = carla_agent.id
 			agent_dict["agent"] = carla_agent
 			agent_dict['dest'] = dest_trans
-			route = planner.trace_route(carla_agent.get_location(), dest_trans)
+			if "route" in agent:
+				waypoints = np.load(f"./route/{town}/{agent['route']}.npy")
+				start_index = np.argmin(np.linalg.norm(waypoints - agent['start'], axis=1))
+				dest_index = np.argmin(np.linalg.norm(waypoints - agent['dest'], axis=1))
+				waypoints = waypoints[start_index:dest_index+1]
+				route = get_proxy_route(waypoints, agent['route'])
+			else:
+				route = planner.trace_route(carla_agent.get_location(), dest_trans)
 			agent_dict['route'] = route                    
 			agent_dict['done'] = 0
-
+			
 		except:
 			print("Spawn failed because of collision at spawn position")
-
+		
+  
 		if i == 0:
 			agent_dict['collision'] = CollisionSensor(carla_agent)
   
@@ -519,22 +529,22 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 
 assigned_location_dict = {
   'Town05':{
-		'E1': (13.700, 2.600),
-		'E2': (13.700, 6.000),
-		'E3': (47.200, 1.800),
-		'E4': (47.200, 5.100),
-		'A1': (31.600, 18.100),
-		'A2': (35.100, 18.100),
-		'A3': (31.400, -18.100),
-		'A4': (34.900, -18.100),
-		'B1': (27.900, -18.100),
-		'B2': (24.400, -18.100),
-		'B3': (28.200, 18.100),
-		'B4': (24.600, 18.100),
-		'C1': (47.200, -1.700),
-		'C2': (47.200, -5.200),
-		'C3': (10.700, -0.900),
-		'C4': (10.700, -4.400),
+		'E1': (13.7, 2.6),
+		'E2': (13.7, 6.0),
+		'E3': (47.2, 1.8),
+		'E4': (47.2, 5.1),
+		'A1': (31.6, 18.1),
+		'A2': (35.1, 18.1),
+		'A3': (31.4, -18.1),
+		'A4': (34.9, -18.1),
+		'B1': (27.9, -18.1),
+		'B2': (24.4, -18.1),
+		'B3': (28.2, 18.1),
+		'B4': (24.6, 18.1),
+		'C1': (47.2, -1.7),
+		'C2': (47.2, -5.2),
+		'C3': (10.7, -0.9),
+		'C4': (10.7, -4.4),
 		'center': (29.550, 0.85)
 	},
 	'Town04':{
@@ -572,7 +582,8 @@ def game_loop(args):
 	if args.record:
 		os.makedirs(f'{save_path}/gifs', exist_ok=True)
 
-	for scenario_index, scenario in enumerate(eval_config["available_scenarios"][resume:], start=resume):
+	for scenario in eval_config["available_scenarios"][resume:]:
+		scenario_index = scenario["Index"]
 		town = scenario['Town']
 		logging.info(f'Running scenario {scenario_index} at {town}')
 

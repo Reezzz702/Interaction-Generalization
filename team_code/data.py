@@ -21,6 +21,8 @@ from sklearn.utils.class_weight import compute_class_weight
 from center_net import angle2class
 from imgaug import augmenters as ia
 from skimage.transform import rotate
+from PIL import Image
+import time
 
 
 class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
@@ -41,8 +43,14 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 		self.data_cache = shared_dict
 		self.target_speed_bins = np.array(config.target_speed_bins)
 		self.angle_bins = np.array(config.angle_bins)
-		self.converter = np.uint8(config.converter)
-		self.bev_converter = np.uint8(config.bev_converter)
+		if self.config.use_semantic:
+			self.converter = np.uint8(config.converter)
+		if self.config.use_bev_semantic:
+			self.bev_converter = np.uint8(config.bev_converter)
+		if self.config.use_bev_topo:
+			self.bev_topo_converter = np.uint8(config.bev_topo_converter)
+		if self.config.use_occ:
+			self.occ_converter = np.uint8(config.occ_converter)
 
 		self.images = []
 		self.images_augmented = []
@@ -50,6 +58,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 		self.semantics_augmented = []
 		self.bev_semantics = []
 		self.bev_semantics_augmented = []
+		self.future_bevs = []
 		self.depth = []
 		self.depth_augmented = []
 		self.hdmaps = []
@@ -57,6 +66,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 		self.boxes = []
 		self.topdowns = []
 		self.future_boxes = []
+		self.trajectory = []
 		self.measurements = []
 		self.sample_start = []
 
@@ -109,6 +119,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 					semantic_augmented = []
 					bev_semantic = []
 					bev_semantic_augmented = []
+					future_bev = []
 					depth = []
 					depth_augmented = []
 					hdmap = []
@@ -116,10 +127,12 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 					box = []
 					topdown = []
 					future_box = []
+					trajectory = []
 					measurement = []
 
 					# Loads the current (and past) frames (if seq_len > 1)
 					for idx in range(self.config.seq_len):
+						forcast_step = int(config.forcast_time / (config.data_save_freq / config.carla_fps) + 0.5)
 						if not self.config.use_plant:
 							image.append(route_dir + '/rgb' + (f'/{(seq + idx):04}.jpg'))
 							image_augmented.append(route_dir + '/rgb_augmented' + (f'/{(seq + idx):04}.jpg'))
@@ -127,6 +140,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 							semantic_augmented.append(route_dir + '/semantics_augmented' + (f'/{(seq + idx):04}.png'))
 							bev_semantic.append(route_dir + '/bev_semantics' + (f'/{(seq + idx):04}.png'))
 							bev_semantic_augmented.append(route_dir + '/bev_semantics_augmented' + (f'/{(seq + idx):04}.png'))
+							future_bev.append(route_dir + '/bev_semantics' + (f'/{(seq + idx + forcast_step):04}.png'))
 							depth.append(route_dir + '/depth' + (f'/{(seq + idx):04}.png'))
 							depth_augmented.append(route_dir + '/depth_augmented' + (f'/{(seq + idx):04}.png'))
 							hdmap.append(route_dir  + "/hdmap" + ("/encoded_%04d.png" % (seq + idx)))
@@ -138,9 +152,12 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 								self.semantic_distribution.extend(semantics_i.flatten().tolist())
 
 						box.append(route_dir + '/boxes' + (f'/{(seq + idx):04}.json.gz'))
-						forcast_step = int(config.forcast_time / (config.data_save_freq / config.carla_fps) + 0.5)
-						future_box.append(route_dir + '/boxes' + (f'/{(seq + idx + forcast_step):04}.json.gz'))
-
+						if self.config.use_plant:
+							future_box.append(route_dir + '/boxes' + (f'/{(seq + idx + forcast_step):04}.json.gz'))
+						elif self.config.use_trajectory:
+							for i in range(1, self.config.pred_len + 1):
+								trajectory.append(route_dir + '/boxes' + (f'/{(seq + idx + i):04}.json.gz'))
+							
 					# we only store the root and compute the file name when loading,
 					# because storing 40 * long string per sample can go out of memory.
 
@@ -176,6 +193,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 					self.semantics_augmented.append(semantic_augmented)
 					self.bev_semantics.append(bev_semantic)
 					self.bev_semantics_augmented.append(bev_semantic_augmented)
+					self.future_bevs.append(future_bev)
 					self.depth.append(depth)
 					self.depth_augmented.append(depth_augmented)
 					self.hdmaps.append(hdmap)
@@ -183,6 +201,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 					self.boxes.append(box)
 					self.topdowns.append(topdown)
 					self.future_boxes.append(future_box)
+					self.trajectory.append(trajectory)
 					self.measurements.append(measurement)
 					self.sample_start.append(seq)
 
@@ -224,6 +243,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 		self.semantics_augmented = np.array(self.semantics_augmented).astype(np.string_)
 		self.bev_semantics = np.array(self.bev_semantics).astype(np.string_)
 		self.bev_semantics_augmented = np.array(self.bev_semantics_augmented).astype(np.string_)
+		self.future_bevs = np.array(self.future_bevs).astype(np.string_)
 		self.depth = np.array(self.depth).astype(np.string_)
 		self.depth_augmented = np.array(self.depth_augmented).astype(np.string_)
 		self.hdmaps = np.array(self.hdmaps).astype(np.string_)
@@ -231,6 +251,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 		self.boxes = np.array(self.boxes).astype(np.string_)
 		self.topdowns = np.array(self.topdowns).astype(np.string_)
 		self.future_boxes = np.array(self.future_boxes).astype(np.string_)
+		self.trajectory = np.array(self.trajectory).astype(np.string_)  
 		self.measurements = np.array(self.measurements).astype(np.string_)
 
 		self.temporal_lidars = np.array(self.temporal_lidars).astype(np.string_)
@@ -259,6 +280,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 		semantics_augmented = self.semantics_augmented[index]
 		bev_semantics = self.bev_semantics[index]
 		bev_semantics_augmented = self.bev_semantics_augmented[index]
+		future_bevs = self.future_bevs[index]
 		depth = self.depth[index]
 		depth_augmented = self.depth_augmented[index]
 		hdmaps = self.hdmaps[index]
@@ -266,6 +288,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 		boxes = self.boxes[index]
 		topdowns = self.topdowns[index]
 		future_boxes = self.future_boxes[index]
+		trajectory = self.trajectory[index]
 		measurements = self.measurements[index]
 		sample_start = self.sample_start[index]
 
@@ -280,6 +303,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 		loaded_semantics_augmented = []
 		loaded_bev_semantics = []
 		loaded_bev_semantics_augmented = []
+		loaded_future_bevs = []
 		loaded_depth = []
 		loaded_depth_augmented = []
 		loaded_hdmaps = []
@@ -288,6 +312,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 		loaded_vehicles_occupancy = []
 		loaded_pedestrians_occupancy = []
 		loaded_future_boxes = []
+		loaded_trajectory = []
 		loaded_measurements = []
 
 		# Because the strings are stored as numpy byte objects we need to
@@ -335,13 +360,15 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 			# Retrieve data from the disc cache
 			if not self.data_cache is None and cache_key in self.data_cache:
 				boxes_i, future_boxes_i, images_i, images_augmented_i, semantics_i, semantics_augmented_i, bev_semantics_i,\
-				bev_semantics_augmented_i, depth_i, depth_augmented_i, lidars_i, hdmaps_i = self.data_cache[cache_key]
+				bev_semantics_augmented_i, future_bevs_i, depth_i, depth_augmented_i, lidars_i, hdmaps_i, trajectory_i = self.data_cache[cache_key]
 				if not self.config.use_plant:
 					images_i = cv2.imdecode(images_i, cv2.IMREAD_UNCHANGED)
 					if self.config.use_semantic:
 						semantics_i = cv2.imdecode(semantics_i, cv2.IMREAD_UNCHANGED)
-					if self.config.use_bev_semantic:
+					if self.config.use_bev_semantic or self.config.use_bev_topo:
 						bev_semantics_i = cv2.imdecode(bev_semantics_i, cv2.IMREAD_UNCHANGED)
+					if self.config.use_occ:
+						future_bevs_i = cv2.imdecode(future_bevs_i, cv2.IMREAD_UNCHANGED)
 					if self.config.use_depth:
 						depth_i = cv2.imdecode(depth_i, cv2.IMREAD_UNCHANGED)
 					if self.config.use_hdmap:
@@ -351,7 +378,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 						images_augmented_i = cv2.imdecode(images_augmented_i, cv2.IMREAD_UNCHANGED)
 						if self.config.use_semantic:
 							semantics_augmented_i = cv2.imdecode(semantics_augmented_i, cv2.IMREAD_UNCHANGED)
-						if self.config.use_bev_semantic:
+						if self.config.use_bev_semantic or self.config.use_bev_topo:
 							bev_semantics_augmented_i = cv2.imdecode(bev_semantics_augmented_i, cv2.IMREAD_UNCHANGED)
 						if self.config.use_depth:
 							depth_augmented_i = cv2.imdecode(depth_augmented_i, cv2.IMREAD_UNCHANGED)
@@ -364,6 +391,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 				semantics_augmented_i = None
 				bev_semantics_i = None
 				bev_semantics_augmented_i = None
+				future_bevs_i = None
 				depth_i = None
 				depth_augmented_i = None
 				hdmaps_i = None
@@ -374,6 +402,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 				boxes_i = None
 				vehicles_occupancy_i = None
 				pedestrians_occupancy_i = None
+				trajectory_i = []
 				# Load bounding boxes
 				if self.config.detect_boxes or self.config.use_plant:
 					with gzip.open(str(boxes[i], encoding='utf-8'), 'rt', encoding='utf-8') as f2:
@@ -381,6 +410,10 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 					if self.config.use_plant:
 						with gzip.open(str(future_boxes[i], encoding='utf-8'), 'rt', encoding='utf-8') as f2:
 							future_boxes_i = ujson.load(f2)
+					if self.config.use_trajectory:
+						for j in range(len(trajectory[i])):
+							with gzip.open(str(trajectory[i][j], encoding='utf-8'), 'rt', encoding='utf-8') as f2:
+								trajectory_i.append(ujson.load(f2))
 
 				if not self.config.use_plant:
 					las_object = laspy.read(str(lidars[i], encoding='utf-8'))
@@ -390,8 +423,10 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 					images_i = cv2.cvtColor(images_i, cv2.COLOR_BGR2RGB)
 					if self.config.use_semantic:
 						semantics_i = cv2.imread(str(semantics[i], encoding='utf-8'), cv2.IMREAD_UNCHANGED)
-					if self.config.use_bev_semantic:
+					if self.config.use_bev_semantic or self.config.use_bev_topo:
 						bev_semantics_i = cv2.imread(str(bev_semantics[i], encoding='utf-8'), cv2.IMREAD_UNCHANGED)
+					if self.config.use_occ:
+						future_bevs_i = cv2.imread(str(future_bevs[i], encoding='utf-8'), cv2.IMREAD_UNCHANGED)
 					if self.config.use_depth:
 						depth_i = cv2.imread(str(depth[i], encoding='utf-8'), cv2.IMREAD_UNCHANGED)
 					if self.config.use_hdmap:
@@ -405,7 +440,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 						images_augmented_i = cv2.cvtColor(images_augmented_i, cv2.COLOR_BGR2RGB)
 						if self.config.use_semantic:
 							semantics_augmented_i = cv2.imread(str(semantics_augmented[i], encoding='utf-8'), cv2.IMREAD_UNCHANGED)
-						if self.config.use_bev_semantic:
+						if self.config.use_bev_semantic or self.config.use_bev_topo:
 							bev_semantics_augmented_i = cv2.imread(str(bev_semantics_augmented[i], encoding='utf-8'),
 																										 cv2.IMREAD_UNCHANGED)
 						if self.config.use_depth:
@@ -423,6 +458,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 					compressed_semantic_augmented_i = None
 					compressed_bev_semantic_i = None
 					compressed_bev_semantic_augmented_i = None
+					compressed_future_bev_i = None
 					compressed_depth_i = None
 					compressed_depth_augmented_i = None
 					compressed_lidar_i = None
@@ -431,8 +467,10 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 						_, compressed_image_i = cv2.imencode('.jpg', images_i)
 						if self.config.use_semantic:
 							_, compressed_semantic_i = cv2.imencode('.png', semantics_i)
-						if self.config.use_bev_semantic:
+						if self.config.use_bev_semantic or self.config.use_bev_topo:
 							_, compressed_bev_semantic_i = cv2.imencode('.png', bev_semantics_i)
+						if self.config.use_occ:
+							_, compressed_future_bev_i = cv2.imencode('.png', future_bevs_i)
 						if self.config.use_depth:
 							_, compressed_depth_i = cv2.imencode('.png', depth_i)
 						if self.config.use_hdmap:
@@ -442,7 +480,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 							_, compressed_image_augmented_i = cv2.imencode('.jpg', images_augmented_i)
 							if self.config.use_semantic:
 								_, compressed_semantic_augmented_i = cv2.imencode('.png', semantics_augmented_i)
-							if self.config.use_bev_semantic:
+							if self.config.use_bev_semantic or self.config.use_bev_topo:
 								_, compressed_bev_semantic_augmented_i = cv2.imencode('.png', bev_semantics_augmented_i)
 							if self.config.use_depth:
 								_, compressed_depth_augmented_i = cv2.imencode('.png', depth_augmented_i)
@@ -464,17 +502,19 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 
 					self.data_cache[cache_key] = (boxes_i, future_boxes_i, compressed_image_i, compressed_image_augmented_i,
 																				compressed_semantic_i, compressed_semantic_augmented_i,
-																				compressed_bev_semantic_i, compressed_bev_semantic_augmented_i,
-																				compressed_depth_i, compressed_depth_augmented_i, compressed_lidar_i, compressed_hdmaps)
+																				compressed_bev_semantic_i, compressed_bev_semantic_augmented_i, compressed_future_bev_i,
+																				compressed_depth_i, compressed_depth_augmented_i, compressed_lidar_i, compressed_hdmaps, trajectory_i)
 
 			loaded_images.append(images_i)
 			loaded_images_augmented.append(images_augmented_i)
 			if self.config.use_semantic:
 				loaded_semantics.append(semantics_i)
 				loaded_semantics_augmented.append(semantics_augmented_i)
-			if self.config.use_bev_semantic:
+			if self.config.use_bev_semantic or self.config.use_bev_topo:
 				loaded_bev_semantics.append(bev_semantics_i)
 				loaded_bev_semantics_augmented.append(bev_semantics_augmented_i)
+			if self.config.use_occ:
+				loaded_future_bevs.append(future_bevs_i)
 			if self.config.use_depth:
 				loaded_depth.append(depth_i)
 				loaded_depth_augmented.append(depth_augmented_i)
@@ -487,6 +527,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 			loaded_lidars.append(lidars_i)
 			loaded_boxes.append(boxes_i)
 			loaded_future_boxes.append(future_boxes_i)
+			loaded_trajectory.append(trajectory_i)
 
 		loaded_temporal_lidars = []
 		loaded_temporal_measurements = []
@@ -528,6 +569,10 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 					semantics_i = self.converter[loaded_semantics_augmented[self.config.seq_len - 1]]  # pylint: disable=locally-disabled, unsubscriptable-object
 				if self.config.use_bev_semantic:
 					bev_semantics_i = self.bev_converter[loaded_bev_semantics_augmented[self.config.seq_len - 1]]  # pylint: disable=locally-disabled, unsubscriptable-object
+				if self.config.use_bev_topo:
+					bev_topo_i = self.bev_topo_converter[loaded_bev_semantics_augmented[self.config.seq_len - 1]]  # pylint: disable=locally-disabled, unsubscriptable-object
+				if self.config.use_occ:
+					future_bev_i = self.occ_converter[loaded_future_bevs[self.config.seq_len - 1]]  # pylint: disable=locally-disabled, unsubscriptable-object
 				if self.config.use_depth:
 					# We saved the data in 8 bit and now convert back to float.
 					depth_i = loaded_depth_augmented[self.config.seq_len - 1].astype(np.float32) / 255.0  # pylint: disable=locally-disabled, unsubscriptable-object
@@ -542,15 +587,23 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 					semantics_i = self.converter[loaded_semantics[self.config.seq_len - 1]]  # pylint: disable=locally-disabled, unsubscriptable-object
 				if self.config.use_bev_semantic:
 					bev_semantics_i = self.bev_converter[loaded_bev_semantics[self.config.seq_len - 1]]  # pylint: disable=locally-disabled, unsubscriptable-object
+				if self.config.use_bev_topo:
+					bev_topo_i = self.bev_topo_converter[loaded_bev_semantics[self.config.seq_len - 1]]  # pylint: disable=locally-disabled, unsubscriptable-object
+				if self.config.use_occ:
+					future_bev_i = self.occ_converter[loaded_future_bevs[self.config.seq_len - 1]]  # pylint: disable=locally-disabled, unsubscriptable-object
 				if self.config.use_depth:
 					depth_i = loaded_depth[self.config.seq_len - 1].astype(np.float32) / 255.0  # pylint: disable=locally-disabled, unsubscriptable-object
-
+   
 			# The indexing is an elegant way to down-sample the semantic images without interpolation or changing the dtype
 			if self.config.use_semantic:
 				data['semantic'] = semantics_i[::self.config.perspective_downsample_factor, ::self.config.
 																			 perspective_downsample_factor]
 			if self.config.use_bev_semantic:
 				data['bev_semantic'] = bev_semantics_i
+			if self.config.use_bev_topo:
+				data['bev_topo'] = bev_topo_i
+			if self.config.use_occ:
+				data['occ'] = future_bev_i
 			if self.config.use_depth:
 				# OpenCV uses Col, Row format
 				data['depth'] = cv2.resize(depth_i,

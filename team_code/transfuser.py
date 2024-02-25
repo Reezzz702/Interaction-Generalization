@@ -21,7 +21,8 @@ class TransfuserBackbone(nn.Module):
   def __init__(self, config):
     super().__init__()
     self.config = config
-
+    self.use_lidar_branch = (self.config.use_route or self.config.use_occ or self.config.detect_boxes or self.config.use_bev_semantic or self.config.use_bev_topo or self.config.use_hdmap or self.config.use_pedestrian_occupancy or self.config.use_vehicle_occupancy)
+ 
     self.image_encoder = timm.create_model(config.image_architecture, pretrained=True, features_only=True)
 
     self.lidar_video = False
@@ -39,8 +40,11 @@ class TransfuserBackbone(nn.Module):
       self.lidar_encoder = VideoResNet(in_channels=1 + int(config.use_ground_plane), pretrained=False)
       self.global_pool_lidar = nn.AdaptiveAvgPool3d(output_size=1)
       self.avgpool_lidar = nn.AdaptiveAvgPool3d((None, self.config.lidar_vert_anchors, self.config.lidar_horz_anchors))
-      lidar_time_frames = [config.lidar_seq_len, 3, 2, 1]
-
+      lidar_time_frames = [self.config.lidar_seq_len]
+      for _ in range(3):
+        current_block_time_frames = int(lidar_time_frames[-1]/2) + lidar_time_frames[-1]%2
+        lidar_time_frames.append(current_block_time_frames)
+        
     elif config.lidar_architecture == 'video_swin_tiny':
       self.lidar_encoder = SwinTransformer3D(pretrained=False,
                                              pretrained2d=False,
@@ -87,12 +91,23 @@ class TransfuserBackbone(nn.Module):
                     self.image_encoder.feature_info.info[start_index + i]['num_chs'],
                     kernel_size=1) for i in range(4)
       ])
-      self.img_channel_to_lidar = nn.ModuleList([
-          nn.Conv2d(self.image_encoder.feature_info.info[start_index + i]['num_chs'],
-                    self.lidar_encoder.feature_info.info[start_index + i]['num_chs'],
-                    kernel_size=1) for i in range(4)
-      ])
-
+      """
+      In order to avoid zero grad on img_channel_to_lidar[3] when none of the decoded representation use the output from lidar branch,
+      we need to move this 2d conv outside of the transfuser backbone, and train it during the 2nd stage (waypoints training)
+      """
+      if not self.use_lidar_branch:
+        self.img_channel_to_lidar = nn.ModuleList([
+            nn.Conv2d(self.image_encoder.feature_info.info[start_index + i]['num_chs'],
+                      self.lidar_encoder.feature_info.info[start_index + i]['num_chs'],
+                      kernel_size=1) for i in range(3)
+        ])
+      else:
+        self.img_channel_to_lidar = nn.ModuleList([
+            nn.Conv2d(self.image_encoder.feature_info.info[start_index + i]['num_chs'],
+                      self.lidar_encoder.feature_info.info[start_index + i]['num_chs'],
+                      kernel_size=1) for i in range(4)
+        ])
+        
     self.num_image_features = self.image_encoder.feature_info.info[start_index + 3]['num_chs']
     # Typical encoders down-sample by a factor of 32
     self.perspective_upsample_factor = self.image_encoder.feature_info.info[
@@ -138,12 +153,14 @@ class TransfuserBackbone(nn.Module):
                                         self.config.lidar_resolution_width // self.config.bev_down_sample_factor),
                                   mode='bilinear',
                                   align_corners=False)
+    
+    
+    if self.use_lidar_branch:
+      self.up_conv5 = nn.Conv2d(channel, channel, (3, 3), padding=1)
+      self.up_conv4 = nn.Conv2d(channel, channel, (3, 3), padding=1)
 
-    self.up_conv5 = nn.Conv2d(channel, channel, (3, 3), padding=1)
-    self.up_conv4 = nn.Conv2d(channel, channel, (3, 3), padding=1)
-
-    # lateral
-    self.c5_conv = nn.Conv2d(self.lidar_encoder.feature_info.info[start_index + 3]['num_chs'], channel, (1, 1))
+      # lateral
+      self.c5_conv = nn.Conv2d(self.lidar_encoder.feature_info.info[start_index + 3]['num_chs'], channel, (1, 1))
 
   def top_down(self, x):
 
@@ -183,12 +200,15 @@ class TransfuserBackbone(nn.Module):
     if len(self.lidar_encoder.return_layers) > 4:
       lidar_features = self.forward_layer_block(lidar_layers, self.lidar_encoder.return_layers, lidar_features)
 
+    lidar_features_layer = None
     # Loop through the 4 blocks of the network.
     for i in range(4):
       image_features = self.forward_layer_block(image_layers, self.image_encoder.return_layers, image_features)
       lidar_features = self.forward_layer_block(lidar_layers, self.lidar_encoder.return_layers, lidar_features)
-
-      image_features, lidar_features = self.fuse_features(image_features, lidar_features, i)
+      if (i == 3) and not self.use_lidar_branch:
+        image_features, lidar_features, lidar_features_layer = self.fuse_features(image_features, lidar_features, i)
+      else:
+        image_features, lidar_features = self.fuse_features(image_features, lidar_features, i)
 
     """
     This condition will cause bev_features to be NoneType when we are not predicting bounding box and bev_semantic,
@@ -201,8 +221,7 @@ class TransfuserBackbone(nn.Module):
     #   x4 = lidar_features
 
     if self.lidar_video:
-      lidar_features = torch.mean(lidar_features, dim=2)
-    x4 = lidar_features
+      lidar_features = torch.mean(lidar_features, dim=2)  
 
     image_feature_grid = None
     if self.config.use_semantic or self.config.use_depth:
@@ -220,22 +239,21 @@ class TransfuserBackbone(nn.Module):
         lidar_features = self.lidar_to_img_features_end(lidar_features)
         fused_features = image_features + lidar_features
       else:
-        fused_features = torch.cat((image_features, lidar_features), dim=1)
-
+        fused_features = torch.cat((image_features, lidar_features), dim=1)    
     
     """
     This condition will cause bev_features to be NoneType when we are not predicting bounding box and bev_semantic,
     however, we still need bev_features to predict hdmap.
     """
-    # if self.config.detect_boxes or self.config.use_bev_semantic:
-    #   features = self.top_down(x4)
-    # else:
-    #   features = None
+    if self.use_lidar_branch:
+      x4 = lidar_features
+      features = self.top_down(x4)
+    else:
+      features = None
     
-    features = self.top_down(x4)
-
-    return features, fused_features, image_feature_grid
-
+    # features = self.top_down(x4)
+    return features, fused_features, image_feature_grid, lidar_features_layer
+      
   def forward_layer_block(self, layers, return_layers, features):
     """
     Run one forward pass to a block of layers from a TIMM neural network and returns the result.
@@ -266,25 +284,31 @@ class TransfuserBackbone(nn.Module):
 
     image_features_layer, lidar_features_layer = self.transformers[layer_idx](image_embd_layer, lidar_embd_layer)
 
-    lidar_features_layer = self.img_channel_to_lidar[layer_idx](lidar_features_layer)
+    
 
     image_features_layer = F.interpolate(image_features_layer,
                                          size=(image_features.shape[2], image_features.shape[3]),
                                          mode='bilinear',
                                          align_corners=False)
-    if self.lidar_video:
-      lidar_features_layer = F.interpolate(lidar_features_layer,
-                                           size=(lidar_features.shape[2], lidar_features.shape[3],
-                                                 lidar_features.shape[4]),
-                                           mode='trilinear',
-                                           align_corners=False)
-    else:
-      lidar_features_layer = F.interpolate(lidar_features_layer,
-                                           size=(lidar_features.shape[2], lidar_features.shape[3]),
-                                           mode='bilinear',
-                                           align_corners=False)
     image_features = image_features + image_features_layer
-    lidar_features = lidar_features + lidar_features_layer
+
+    if (layer_idx ==3) and not self.use_lidar_branch:
+      return image_features, lidar_features, lidar_features_layer
+    
+    else:
+      lidar_features_layer = self.img_channel_to_lidar[layer_idx](lidar_features_layer)
+      if self.lidar_video:
+        lidar_features_layer = F.interpolate(lidar_features_layer,
+                                          size=(lidar_features.shape[2], lidar_features.shape[3],
+                                                lidar_features.shape[4]),
+                                          mode='trilinear',
+                                          align_corners=False)
+      else:
+        lidar_features_layer = F.interpolate(lidar_features_layer,
+                                            size=(lidar_features.shape[2], lidar_features.shape[3]),
+                                            mode='bilinear',
+                                            align_corners=False)
+      lidar_features = lidar_features + lidar_features_layer   
 
     return image_features, lidar_features
 
@@ -336,7 +360,6 @@ class GPT(nn.Module):
             image_tensor (tensor): B*4*seq_len, C, H, W
             lidar_tensor (tensor): B*seq_len, C, H, W
         """
-
     bz = lidar_tensor.shape[0]
     if self.lidar_video:
       lidar_h, lidar_w = lidar_tensor.shape[3:5]
@@ -353,7 +376,6 @@ class GPT(nn.Module):
       lidar_tensor = lidar_tensor.permute(0, 2, 3, 1).contiguous().view(bz, -1, self.n_embd)
 
     token_embeddings = torch.cat((image_tensor, lidar_tensor), dim=1)
-
     x = self.drop(self.pos_emb + token_embeddings)
     x = self.blocks(x)  # (B, an * T, C)
     x = self.ln_f(x)  # (B, an * T, C)
@@ -367,7 +389,6 @@ class GPT(nn.Module):
     else:
       lidar_tensor_out = x[:, self.seq_len * self.config.img_vert_anchors * self.config.img_horz_anchors:, :].view(
           bz, lidar_h, lidar_w, -1).permute(0, 3, 1, 2).contiguous()
-
     return image_tensor_out, lidar_tensor_out
 
 

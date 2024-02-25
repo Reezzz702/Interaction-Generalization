@@ -365,12 +365,13 @@ class SRLAgent():
       pred_checkpoint,\
       pred_semantic, \
       pred_bev_semantic, \
+      pred_bev_topo, \
       pred_depth, \
       pred_hdmap, \
       pred_route, \
       pred_vehicle_occupancy, \
       pred_pedestrian_occupancy, \
-      pred_bounding_box, _, \
+      pred_bounding_box, pred_occ, attention_weights, \
       pred_wp_1, \
       selected_path = self.nets[i].forward(
         rgb=tick_data['rgb'],

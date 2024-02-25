@@ -152,15 +152,14 @@ class PlanTAgent(DataAgent):
         bounding_boxes_padded[:self.config.max_num_bbs, :] = bounding_boxes[:self.config.max_num_bbs]
 
     bounding_boxes_padded = bounding_boxes_padded.unsqueeze(0)
-
     speed = torch.tensor(tick_data['speed'], dtype=torch.float32).to(self.device).unsqueeze(0)
-
+    
     pred_wps = []
     pred_target_speeds = []
     pred_checkpoints = []
     pred_bbs = []
     for i in range(self.model_count):
-      pred_wp, pred_target_speed, pred_checkpoint, pred_bb = self.nets[i].forward(bounding_boxes=bounding_boxes_padded,
+      pred_wp, pred_target_speed, pred_checkpoint, pred_bb, _ = self.nets[i].forward(bounding_boxes=bounding_boxes_padded,
                                                                                   route=route,
                                                                                   target_point=target_point,
                                                                                   light_hazard=light_hazard,

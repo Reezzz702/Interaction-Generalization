@@ -11,6 +11,7 @@ from aim import AIMBackbone
 from data import CARLA_Data
 from center_net import LidarCenterNetHead
 import cv2
+import timm
 
 import torch
 from torch import nn
@@ -20,6 +21,9 @@ from copy import deepcopy
 import math
 import os
 from stp3_utils import VehicleDecoder, PedestrianDecoder, SegmentationLoss
+from video_swin_transformer import SwinTransformer3D
+from video_resnet import VideoResNet
+from torchvision.models import resnet18
 
 
 class LidarCenterNet(nn.Module):
@@ -30,8 +34,8 @@ class LidarCenterNet(nn.Module):
 	def __init__(self, config):
 		super().__init__()
 		self.config = config
-
-		# self.data = CARLA_Data(root=[], config=self.config, shared_dict=None)
+		self.use_lidar_branch = (self.config.use_route or self.config.use_occ or self.config.detect_boxes or self.config.use_bev_semantic or self.config.use_bev_topo or self.config.use_hdmap or self.config.use_pedestrian_occupancy or self.config.use_vehicle_occupancy)
+		self.data = CARLA_Data(root=[], config=self.config, shared_dict=None)
 
 		self.speed_histogram = []
 		self.make_histogram = int(os.environ.get('HISTOGRAM', 0))
@@ -42,6 +46,89 @@ class LidarCenterNet(nn.Module):
 			self.backbone = AIMBackbone(config)
 		elif self.config.backbone == 'bev_encoder':
 			self.backbone = BevEncoder(config)
+
+			if not self.use_lidar_branch and self.config.use_wp_gru:
+				self.lidar_video = False
+				if config.lidar_architecture in ('video_resnet18', 'video_swin_tiny'):
+					self.lidar_video = True
+
+				if config.use_ground_plane:
+					in_channels = 2 * config.lidar_seq_len
+				else:
+					in_channels = config.lidar_seq_len
+
+				self.avgpool_img = nn.AdaptiveAvgPool2d((self.config.img_vert_anchors, self.config.img_horz_anchors))
+
+				if config.lidar_architecture == 'video_resnet18':
+					self.bev_encoder = VideoResNet(in_channels=1 + int(config.use_ground_plane) + self.config.bev_latent_dim,
+																				pretrained=False)
+					self.global_pool_bev = nn.AdaptiveAvgPool3d(output_size=1)
+					self.avgpool_lidar = nn.AdaptiveAvgPool3d((None, self.config.lidar_vert_anchors, self.config.lidar_horz_anchors))
+
+				elif config.lidar_architecture == 'video_swin_tiny':
+					self.bev_encoder = SwinTransformer3D(pretrained=False,
+																							pretrained2d=False,
+																							in_chans=1 + int(config.use_ground_plane))
+					self.global_pool_bev = nn.AdaptiveAvgPool3d(output_size=1)
+					self.avgpool_lidar = nn.AdaptiveAvgPool3d((None, self.config.lidar_vert_anchors, self.config.lidar_horz_anchors))
+				else:
+					self.bev_encoder = timm.create_model(config.lidar_architecture,
+																							pretrained=False,
+																							in_chans=in_channels + self.config.bev_latent_dim,
+																							features_only=True)
+					self.global_pool_bev = nn.AdaptiveAvgPool2d(output_size=1)
+					self.avgpool_lidar = nn.AdaptiveAvgPool2d((self.config.lidar_vert_anchors, self.config.lidar_horz_anchors))
+
+				self.global_pool_img = nn.AdaptiveAvgPool2d(output_size=1)
+
+				bev_start_index = 0
+				# Some networks have a stem layer
+				if len(self.bev_encoder.return_layers) > 4:
+					bev_start_index += 1
+
+				# Delete unused layer, so we don't have to search for unused parameters.
+				name = self.bev_encoder.feature_info.info[self.backbone.img_start_index + 3]['module']
+				delattr(self.bev_encoder, name)
+
+				# Number of features the encoder produces.
+				self.num_features = self.bev_encoder.feature_info.info[bev_start_index + 2]['num_chs']
+
+				channel = self.config.bev_features_chanels
+				self.relu = nn.ReLU(inplace=True)
+				self.upsample = nn.Upsample(scale_factor=self.config.bev_upsample_factor, mode='bilinear', align_corners=False)
+				self.upsample2 = nn.Upsample(size=(self.config.lidar_resolution_height // self.config.bev_down_sample_factor,
+																						self.config.lidar_resolution_width // self.config.bev_down_sample_factor),
+																			mode='bilinear',
+																			align_corners=False)
+
+
+				# Compute grid for geometric camera projection. We only need to do this once as the location of the camera
+				# doesn't change.
+				grid, valid_voxels = t_u.create_projection_grid(self.config)
+				# I need to register them as parameter so that they will automatically be moved to the correct GPU with the rest of
+				# the network
+				self.grid = nn.Parameter(grid, requires_grad=False)
+				# The eps is essential here as many values pixels will be 0
+				normlaizer = torch.finfo(torch.float32).eps + torch.sum(valid_voxels, dim=3, keepdim=False).unsqueeze(1)
+				self.bev_projection_normalizer = nn.Parameter(normlaizer, requires_grad=False)
+
+				valid_bev_pixels = torch.max(valid_voxels, dim=3, keepdim=False)[0].unsqueeze(1)
+				# Conversion from CARLA coordinates x depth, y width to image coordinates x width, y depth.
+				# Analogous to transpose after the LiDAR histogram
+				valid_bev_pixels = torch.transpose(valid_bev_pixels, 2, 3).contiguous()
+				self.valid_bev_pixels = nn.Parameter(valid_bev_pixels, requires_grad=False)
+
+				# These particular sequential design is taken from the SimpleBEV paper.
+				self.bev_compressor = nn.Sequential(
+						nn.Conv2d(self.config.bev_latent_dim,
+											self.config.bev_latent_dim,
+											kernel_size=3,
+											padding=1,
+											stride=1,
+											bias=False),
+						nn.InstanceNorm2d(self.config.bev_latent_dim),
+						nn.GELU(),
+				)
 		else:
 			raise ValueError('The chosen vision backbone does not exist. '
 											 'The options are: transFuser, aim, bev_encoder')
@@ -89,17 +176,53 @@ class LidarCenterNet(nn.Module):
 					nn.Upsample(size=(self.config.lidar_resolution_height, self.config.lidar_resolution_width),
 											mode='bilinear',
 											align_corners=False))
+   
+		if self.config.use_bev_topo:
+			self.bev_topo_decoder = nn.Sequential(
+					nn.Conv2d(self.config.bev_features_chanels,
+										self.config.bev_features_chanels,
+										kernel_size=(3, 3),
+										stride=1,
+										padding=(1, 1),
+										bias=True), nn.ReLU(inplace=True),
+					nn.Conv2d(self.config.bev_features_chanels,
+										self.config.num_bev_semantic_classes,
+										kernel_size=(1, 1),
+										stride=1,
+										padding=0,
+										bias=True),
+					nn.Upsample(size=(self.config.lidar_resolution_height, self.config.lidar_resolution_width),
+											mode='bilinear',
+											align_corners=False))
 
-			# Computes which pixels are visible in the camera. We mask the others.
-			_, valid_voxels = t_u.create_projection_grid(self.config)
-			valid_bev_pixels = torch.max(valid_voxels, dim=3, keepdim=False)[0].unsqueeze(1)
-			# Conversion from CARLA coordinates x depth, y width to image coordinates x width, y depth.
-			# Analogous to transpose after the LiDAR histogram
-			valid_bev_pixels = torch.transpose(valid_bev_pixels, 2, 3).contiguous()
-			valid_bev_pixels_inv = 1.0 - valid_bev_pixels
-			# Register as parameter so that it will automatically be moved to the correct GPU with the rest of the network
-			self.valid_bev_pixels = nn.Parameter(valid_bev_pixels, requires_grad=False)
-			self.valid_bev_pixels_inv = nn.Parameter(valid_bev_pixels_inv, requires_grad=False)
+		if self.config.use_occ:
+			self.occ_decoder = nn.Sequential(
+					nn.Conv2d(self.config.bev_features_chanels,
+										self.config.bev_features_chanels,
+										kernel_size=(3, 3),
+										stride=1,
+										padding=(1, 1),
+										bias=True), nn.ReLU(inplace=True),
+					nn.Conv2d(self.config.bev_features_chanels,
+										self.config.num_occ_classes,
+										kernel_size=(1, 1),
+										stride=1,
+										padding=0,
+										bias=True),
+					nn.Upsample(size=(self.config.lidar_resolution_height, self.config.lidar_resolution_width),
+											mode='bilinear',
+											align_corners=False))
+			
+		# Computes which pixels are visible in the camera. We mask the others.
+		_, valid_voxels = t_u.create_projection_grid(self.config)
+		valid_bev_pixels = torch.max(valid_voxels, dim=3, keepdim=False)[0].unsqueeze(1)
+		# Conversion from CARLA coordinates x depth, y width to image coordinates x width, y depth.
+		# Analogous to transpose after the LiDAR histogram
+		valid_bev_pixels = torch.transpose(valid_bev_pixels, 2, 3).contiguous()
+		valid_bev_pixels_inv = 1.0 - valid_bev_pixels
+		# Register as parameter so that it will automatically be moved to the correct GPU with the rest of the network
+		self.valid_bev_pixels = nn.Parameter(valid_bev_pixels, requires_grad=False)
+		self.valid_bev_pixels_inv = nn.Parameter(valid_bev_pixels_inv, requires_grad=False)
 
 		if self.config.use_depth:
 			self.depth_decoder = t_u.PerspectiveDecoder(
@@ -125,6 +248,15 @@ class LidarCenterNet(nn.Module):
 																																hidden_size=self.config.gru_hidden_size,
 																																waypoints=self.config.predict_checkpoint_len,
 																																target_point_size=target_point_size)
+   
+		if self.config.use_trajectory:
+			self.cast_grus_other = nn.ModuleList([nn.GRU(512, 32, batch_first=True) for _ in range(6)])
+			self.cast_mlps_other = nn.ModuleList([nn.Linear(64, 2) for _ in range(6)])
+			self.lidar_conv_emb = nn.Sequential(
+            resnet18(num_channels=64),
+            nn.AdaptiveAvgPool2d((1,1)),
+            nn.Flatten(),
+        )
 
 		if self.config.use_vehicle_occupancy:
 			self.vehicle_occupancy_decoder = VehicleDecoder(in_channels=64, n_classes=2)
@@ -162,11 +294,16 @@ class LidarCenterNet(nn.Module):
 					self.join = torch.nn.TransformerDecoder(decoder_layer,
 																									num_layers=self.config.num_transformer_decoder_layers,
 																									norm=decoder_norm)
+
 				# We don't have an encoder, so we directly use it on the features
 				self.encoder_pos_encoding = PositionEmbeddingSine(self.config.gru_input_size // 2, normalize=True)
 				self.extra_sensor_pos_embed = nn.Parameter(torch.zeros(1, self.config.gru_input_size))
 
-				self.change_channel = nn.Conv2d(self.backbone.num_features, self.config.gru_input_size, kernel_size=1)
+				if self.config.backbone == 'bev_encoder' and not self.use_lidar_branch:
+					self.change_channel = nn.Conv2d(self.num_features, self.config.gru_input_size, kernel_size=1)
+				else:
+					self.change_channel = nn.Conv2d(self.backbone.num_features, self.config.gru_input_size, kernel_size=1)
+  
 
 				if self.config.use_wp_gru:
 					if self.config.multi_wp_output:
@@ -268,6 +405,8 @@ class LidarCenterNet(nn.Module):
 
 		self.semantic_weights = torch.tensor(self.config.semantic_weights)
 		self.bev_semantic_weights = torch.tensor(self.config.bev_semantic_weights)
+		self.bev_topo_weights = torch.tensor(self.config.bev_topo_weights)
+		self.occ_weights = torch.tensor(self.config.occ_weights)
 
 		if self.config.use_label_smoothing:
 			label_smoothing = self.config.label_smoothing_alpha
@@ -284,9 +423,30 @@ class LidarCenterNet(nn.Module):
 		self.loss_bev_semantic = nn.CrossEntropyLoss(weight=self.bev_semantic_weights,
 																								 label_smoothing=label_smoothing,
 																								 ignore_index=-1)
+		self.loss_bev_topo = nn.CrossEntropyLoss(weight=self.bev_topo_weights,
+																								 label_smoothing=label_smoothing,
+																								 ignore_index=-1)
+		self.loss_occ = nn.CrossEntropyLoss(weight=self.occ_weights,
+																								 label_smoothing=label_smoothing,
+																								 ignore_index=-1)
 		if self.config.multi_wp_output:
 			self.selection_loss = nn.BCEWithLogitsLoss()
 
+  
+		"""
+		We need to covert the output channel of the last transformer encoder to lidar feature channel,
+		just like we do in the backbone. This would normally be trained in 1st stage (representation training), 
+  	but if none of the decoded representation use the output from lidar branch, this last 2d conv will recieve zero grad.
+		Therefore, we need to move it here and train it at 2nd stage.
+  	"""
+		if self.config.backbone == 'transFuser':
+			if self.config.use_wp_gru and not self.use_lidar_branch:
+				self.img_channel_to_lidar = nn.Conv2d(
+					self.backbone.image_encoder.feature_info.info[4]['num_chs'],
+					self.backbone.lidar_encoder.feature_info.info[4]['num_chs'],
+					kernel_size=1
+				)
+			
 	def reset_parameters(self):
 		if self.config.use_wp_gru:
 			nn.init.uniform_(self.wp_query)
@@ -300,16 +460,79 @@ class LidarCenterNet(nn.Module):
 	def forward(self, rgb, lidar_bev, target_point, ego_vel, command):
 		bs = rgb.shape[0]
 
+		# lidar_features_layer is the output of the last transfomer encoder, would be none, if there is representation decoded from lidar branch
 		if self.config.backbone == 'transFuser':
-			bev_feature_grid, fused_features, image_feature_grid = self.backbone(rgb, lidar_bev)
+			bev_feature_grid, fused_features, image_feature_grid, lidar_features_layer = self.backbone(rgb, lidar_bev)
+
+			if lidar_features_layer is not None:
+				lidar_features_layer = self.img_channel_to_lidar(lidar_features_layer)
+				lidar_features_layer = F.interpolate(lidar_features_layer,
+																								size=(fused_features.shape[2], fused_features.shape[3]),
+																								mode='bilinear',
+																								align_corners=False)
+				fused_features = fused_features + lidar_features_layer
 		elif self.config.backbone == 'aim':
 			fused_features, image_feature_grid = self.backbone(rgb)
 		elif self.config.backbone == 'bev_encoder':
 			bev_feature_grid, fused_features, image_feature_grid = self.backbone(rgb, lidar_bev)
+
+			if not self.use_lidar_branch and self.config.use_wp_gru:
+				if self.lidar_video:
+					lidar_features = lidar_bev.view(bs, -1, self.config.lidar_seq_len, self.config.lidar_resolution_height,
+                                    self.config.lidar_resolution_width)
+				else:
+					lidar_features = lidar_bev
+
+				bev_layers = iter(self.bev_encoder.items())
+				image = image_feature_grid.unsqueeze(2)  # We add a pseudo dimension for the sample grid function
+				# Repeat for batch dimension. The projection is the same for every image
+				grid = self.grid.repeat(bs, 1, 1, 1, 1)
+
+				bev_features = F.grid_sample(image, grid, align_corners=False, padding_mode='zeros')
+
+				# Due to the mask we should do a mean that is adjusted for the number of valid pixels.
+				bev_features = torch.sum(bev_features, dim=4, keepdim=False)
+				bev_features = bev_features / self.bev_projection_normalizer
+
+				# Conversion from CARLA coordinates x depth, y width to image coordinates x width, y depth.
+				# Analogous to transpose after the LiDAR histogram
+				bev_features = torch.transpose(bev_features, 2, 3)
+
+				# We apply the mask at the pixel level as this is more computationally efficient.
+				# It is equivalent to applying the mask at the voxel level up to the bi-linear interpolation at the
+				# boundary of the visible voxels (coming from torch.grid_sample)
+				bev_features = bev_features * self.valid_bev_pixels
+
+				# In simpleBEV they first concatenate the LiDAR before using the bev_compressor.
+				# I do that afterward here because my LiDAR has a time dimension and hence needs 3D convolutions.
+				bev_features = self.bev_compressor(bev_features)
+
+				if self.lidar_video:
+					bev_features = bev_features.unsqueeze(2)  # Add time dimension
+					# Repeat features along the time dimension
+					bev_features = bev_features.repeat(1, 1, lidar_features.shape[2], 1, 1)
+
+				# Maybe sensor fusion is just bringing features into the same coordinate space?
+				fused_features = torch.cat((bev_features, lidar_features), dim=1)
+
+				if len(self.bev_encoder.return_layers) > 4:
+					fused_features = self.forward_layer_block(bev_layers, self.bev_encoder.return_layers, fused_features)
+
+				# Loop through the 3 blocks of the network.
+				for _ in range(3):
+					fused_features = self.forward_layer_block(bev_layers, self.bev_encoder.return_layers, fused_features)
+
+				# Average together any remaining temporal channels
+				if self.lidar_video:
+					fused_features = torch.mean(fused_features, dim=2)
+
+				if not self.config.transformer_decoder_join:
+					fused_features = self.global_pool_bev(fused_features)
+					fused_features = torch.flatten(fused_features, 1)
 		else:
 			raise ValueError('The chosen vision backbone does not exist. '
 											 'The options are: transFuser, aim, bev_encoder')
-
+		
 		pred_wp = None
 		pred_target_speed = None
 		pred_checkpoint = None
@@ -410,6 +633,18 @@ class LidarCenterNet(nn.Module):
 			# Mask invisible pixels. They will be ignored in the loss
 			pred_bev_semantic = pred_bev_semantic * self.valid_bev_pixels
 
+		pred_bev_topo = None
+		if self.config.use_bev_topo:
+			pred_bev_topo = self.bev_topo_decoder(bev_feature_grid)
+			# Mask invisible pixels. They will be ignored in the loss
+			pred_bev_topo = pred_bev_topo * self.valid_bev_pixels
+
+		pred_occ = None
+		if self.config.use_occ:
+			pred_occ = self.occ_decoder(bev_feature_grid)
+			# Mask invisible pixels. They will be ignored in the loss
+			pred_occ = pred_occ * self.valid_bev_pixels
+
 		pred_bounding_box = None
 		if self.config.detect_boxes:
 			pred_bounding_box = self.head(bev_feature_grid)
@@ -444,13 +679,55 @@ class LidarCenterNet(nn.Module):
 
 			gru_features = joined_route_features[:, :self.config.predict_checkpoint_len]
 			pred_route = self.route_decoder(gru_features, target_point)
+   
+		if self.config.use_trajectory:
+			bbs_vehicle_coordinate_system = self.convert_features_to_bb_metric(pred_bounding_box)
+			locs = []
+			oris = []
+			for det in bbs_vehicle_coordinate_system:
+				locs.append([det[1], det[0]])
+				oris.append(det[4])
+    
+			locs = torch.tensor(locs, dtype=torch.float32).to(bev_feature_grid.device)
+			oris = torch.tensor(oris, dtype=torch.float32).to(bev_feature_grid.device)
+   
+			N = len(locs)
+			N_features = bev_feature_grid.expand(N, *bev_feature_grid.size())
 
-		return pred_wp, pred_target_speed, pred_checkpoint, pred_semantic, pred_bev_semantic, pred_depth, \
-				pred_hdmap, pred_route, pred_vehicle_occupancy, pred_pedestrian_occupancy, pred_bounding_box, attention_weights, pred_wp_1, selected_path
+			if N > 0:
+					cropped_other_features = self.crop_feature(
+							N_features, locs, oris, 
+							pixels_per_meter=self.pixels_per_meter, 
+							crop_size=32
+					)
+					other_embd = self.lidar_conv_emb(cropped_other_features)
+					other_cast_locs = self.cast(other_embd, mode='other')
+					other_cast_locs = transform_points(other_cast_locs, oris[:,None].repeat(1,self.num_cmds))
+					other_cast_locs += locs.view(N,1,1,2)
+			else:
+					other_cast_locs = torch.zeros((N,self.num_cmds,self.num_plan,2))
 
-	def compute_loss(self, pred_wp, pred_target_speed, pred_checkpoint, pred_semantic, pred_bev_semantic, pred_depth, pred_hdmap,
-									 pred_bounding_box, pred_route, pred_vehicle_occupancy, pred_pedestrian_occupancy, pred_wp_1, selected_path, waypoint_label, target_speed_label, checkpoint_label,
-									 semantic_label, bev_semantic_label, depth_label, hdmap_label, route_label, vehicle_occupancy_label, pedestrian_occupancy_label, center_heatmap_label, wh_label, yaw_class_label,
+		return pred_wp, pred_target_speed, pred_checkpoint, pred_semantic, pred_bev_semantic, pred_bev_topo, pred_depth, \
+				pred_hdmap, pred_route, pred_vehicle_occupancy, pred_pedestrian_occupancy, pred_bounding_box, pred_occ, attention_weights, pred_wp_1, selected_path
+
+	def forward_layer_block(self, layers, return_layers, features):
+		"""
+		Run one forward pass to a block of layers from a TIMM neural network and returns the result.
+		Advances the whole network by just one block
+		:param layers: Iterator starting at the current layer block
+		:param return_layers: TIMM dictionary describing at which intermediate layers features are returned.
+		:param features: Input features
+		:return: Processed features
+		"""
+		for name, module in layers:
+			features = module(features)
+			if name in return_layers:
+				break
+		return features
+
+	def compute_loss(self, pred_wp, pred_target_speed, pred_checkpoint, pred_semantic, pred_bev_semantic, pred_bev_topo, pred_depth, pred_hdmap,
+									 pred_bounding_box, pred_occ, pred_route, pred_vehicle_occupancy, pred_pedestrian_occupancy, pred_wp_1, selected_path, waypoint_label, target_speed_label, checkpoint_label,
+									 semantic_label, bev_semantic_label, bev_topo_label, depth_label, hdmap_label, occ_label, route_label, vehicle_occupancy_label, pedestrian_occupancy_label, center_heatmap_label, wh_label, yaw_class_label,
 									 yaw_res_label, offset_label, velocity_label, brake_target_label, pixel_weight_label,
 									 avg_factor_label):
 		loss = {}
@@ -486,6 +763,20 @@ class LidarCenterNet(nn.Module):
 			visible_bev_semantic_label = (self.valid_bev_pixels.squeeze(1).int() - 1) + visible_bev_semantic_label
 			loss_bev_semantic = self.loss_bev_semantic(pred_bev_semantic, visible_bev_semantic_label)
 			loss.update({'loss_bev_semantic': loss_bev_semantic})
+
+		if self.config.use_bev_topo:
+			visible_bev_topo_label = self.valid_bev_pixels.squeeze(1).int() * bev_topo_label
+			# Set 0 class to ignore index -1
+			visible_bev_topo_label = (self.valid_bev_pixels.squeeze(1).int() - 1) + visible_bev_topo_label
+			loss_bev_topo = self.loss_bev_topo(pred_bev_topo, visible_bev_topo_label)
+			loss.update({'loss_bev_topo': loss_bev_topo})
+
+		if self.config.use_occ:
+			visible_occ_label = self.valid_bev_pixels.squeeze(1).int() * occ_label
+			# Set 0 class to ignore index -1
+			visible_occ_label = (self.valid_bev_pixels.squeeze(1).int() - 1) + visible_occ_label
+			loss_occ = self.loss_occ(pred_occ, visible_occ_label)
+			loss.update({'loss_occ': loss_occ})
 
 		if self.config.use_depth:
 			loss_depth = F.l1_loss(pred_depth, depth_label)
@@ -527,6 +818,57 @@ class LidarCenterNet(nn.Module):
 			loss_pedestrian_occupancy = self.loss_pedestrian(pred_pedestrian_occupancy, pedestrian_occupancy_label)
 			loss.update({'loss_pedestrian_occupancy': loss_pedestrian_occupancy})
 		return loss
+
+	def cast(self, embd):
+		B = embd.size(0)
+
+		u = embd.expand(self.config.pred_len, B, -1).permute(1,0,2)
+
+		cast_grus = self.cast_grus_other
+		cast_mlps = self.cast_mlps_other
+  
+		locs = []
+		for gru, mlp in zip(cast_grus, cast_mlps):
+			gru.flatten_parameters()
+			out, _ = gru(u)
+			locs.append(torch.cumsum(mlp(out), dim=1))
+
+		return torch.stack(locs, dim=1)
+
+	def crop_feature(self, features, rel_locs, rel_oris, pixels_per_meter=4, crop_size=96):
+		B, C, H, W = features.size()
+
+		# ERROR proof hack...
+		rel_locs = rel_locs.view(-1,2)
+
+		rel_locs = rel_locs * pixels_per_meter/torch.tensor([H,W]).type_as(rel_locs).to(rel_locs.device)
+
+		cos = torch.cos(rel_oris)
+		sin = torch.sin(rel_oris)
+
+		rel_x = rel_locs[...,0]
+		rel_y = rel_locs[...,1]
+
+		k = crop_size / H
+
+		# rot_x_offset = -k*self.offset_x*cos+k*self.offset_y*sin+self.offset_x
+		# rot_y_offset = -k*self.offset_x*sin-k*self.offset_y*cos+self.offset_y
+
+		# theta = torch.stack([
+		# 	torch.stack([k*cos, k*-sin, rot_x_offset+rel_x], dim=-1),
+		# 	torch.stack([k*sin, k*cos,  rot_y_offset+rel_y], dim=-1)
+		# ], dim=-2)
+
+		theta = torch.stack([
+			torch.stack([k*cos, k*-sin, rel_x], dim=-1),
+			torch.stack([k*sin, k*cos,  rel_y], dim=-1)
+		], dim=-2)
+
+		grids = F.affine_grid(theta, torch.Size((B,C,crop_size,crop_size)), align_corners=True)
+
+		cropped_features = F.grid_sample(features, grids, align_corners=True)
+
+		return cropped_features
 
 	def convert_features_to_bb_metric(self, bb_predictions):
 		bboxes = self.head.get_bboxes(bb_predictions[0], bb_predictions[1], bb_predictions[2], bb_predictions[3],
@@ -778,9 +1120,9 @@ class LidarCenterNet(nn.Module):
 
 		## add rgb image and lidar
 		if self.config.use_ground_plane:
-			images_lidar = np.concatenate(list(lidar_bev.detach().cpu().numpy()[0][:1]), axis=1)
+			images_lidar = np.concatenate(list(lidar_bev.detach().cpu().numpy()[0][-1:]), axis=1)
 		else:
-			images_lidar = np.concatenate(list(lidar_bev.detach().cpu().numpy()[0][:1]), axis=1)
+			images_lidar = np.concatenate(list(lidar_bev.detach().cpu().numpy()[0][-1:]), axis=1)
 
 		images_lidar = 255 - (images_lidar * 255).astype(np.uint8)
 		images_lidar = np.stack([images_lidar, images_lidar, images_lidar], axis=-1)
@@ -912,10 +1254,8 @@ class LidarCenterNet(nn.Module):
 			images_lidar = np.ascontiguousarray(images_lidar, dtype=np.uint8)
 			t_u.draw_probability_boxes(images_lidar, pred_speed, self.config.target_speeds)
 		
-		# print(images_lidar.shape)
-		# print(rgb_image.shape)
-
 		all_images = np.concatenate((rgb_image, images_lidar), axis=0)
+	
 		all_images = Image.fromarray(all_images.astype(np.uint8))
 
 		store_path = str(str(save_path) + (f'/{step:04}.png'))
@@ -1038,3 +1378,13 @@ class PositionEmbeddingSine(nn.Module):
 		pos_y = torch.stack((pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()), dim=4).flatten(3)
 		pos = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
 		return pos
+
+
+def transform_points(locs, oris):
+	cos, sin = torch.cos(oris), torch.sin(oris)
+	R = torch.stack([
+			torch.stack([ cos, sin], dim=-1),
+			torch.stack([-sin, cos], dim=-1),
+	], dim=-2)
+
+	return locs @ R

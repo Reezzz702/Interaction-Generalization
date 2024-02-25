@@ -3,7 +3,7 @@ Config class that contains all the hyperparameters needed to build any model.
 """
 
 import os
-# import carla
+import carla
 import re
 
 
@@ -14,15 +14,15 @@ class GlobalConfig:
 
   # Weather azimuths used for data collection
   # Defined outside of init because carla objects can't be pickled
-  # weathers = {
-  #     'Clear': carla.WeatherParameters.ClearNoon,
-  #     'Cloudy': carla.WeatherParameters.CloudySunset,
-  #     'Wet': carla.WeatherParameters.WetSunset,
-  #     'MidRain': carla.WeatherParameters.MidRainSunset,
-  #     'WetCloudy': carla.WeatherParameters.WetCloudySunset,
-  #     'HardRain': carla.WeatherParameters.HardRainNoon,
-  #     'SoftRain': carla.WeatherParameters.SoftRainSunset,
-  # }
+  weathers = {
+      'Clear': carla.WeatherParameters.ClearNoon,
+      'Cloudy': carla.WeatherParameters.CloudySunset,
+      'Wet': carla.WeatherParameters.WetSunset,
+      'MidRain': carla.WeatherParameters.MidRainSunset,
+      'WetCloudy': carla.WeatherParameters.WetCloudySunset,
+      'HardRain': carla.WeatherParameters.HardRainNoon,
+      'SoftRain': carla.WeatherParameters.SoftRainSunset,
+  }
 
   def __init__(self):
     """ base architecture configurations """
@@ -172,7 +172,8 @@ class GlobalConfig:
     # We don't use weighting here
     self.semantic_weights = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     self.bev_semantic_weights = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-
+    self.bev_topo_weights = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    self.occ_weights = [1.0, 1.0, 1.0]
     # -----------------------------------------------------------------------------
     # Training
     # -----------------------------------------------------------------------------
@@ -194,7 +195,7 @@ class GlobalConfig:
     # Whether zero_redundancy_optimizer was used during training
     self.zero_redundancy_optimizer = 1
     self.use_disk_cache = 0  # Whether disc cache was used during training
-    self.detect_boxes = 1  # Whether to use the bounding box auxiliary task
+    self.detect_boxes = 0  # Whether to use the bounding box auxiliary task
     self.train_sampling_rate = 1  # We train on every n th sample on the route
     # Number of route points we use for prediction in TF or input in planT
     self.num_route_points = 20
@@ -236,6 +237,8 @@ class GlobalConfig:
         'loss_checkpoint': 1.0,
         'loss_semantic': 1.0,
         'loss_bev_semantic': 1.0,
+        'loss_bev_topo': 1.0,
+        'loss_occ': 1.0,
         'loss_depth': 1.0,
         'loss_hdmap': 1.0, 
         'loss_route': 1.0,       
@@ -266,14 +269,20 @@ class GlobalConfig:
     self.lidar_aug_prob = 1.0  # Probability with which data augmentation is applied to the LiDAR image.
     self.freeze_backbone = False  # Whether to freeze the image backbone during training. Useful for 2 stage training.
     self.learn_multi_task_weights = False  # Whether to learn the multi-task weights
-    self.use_bev_semantic = True  # Whether to use bev semantic segmentation as auxiliary loss for training.
-    self.use_depth = True # Whether to use depth prediction as auxiliary loss for training.
-    self.use_hdmap = True  # Whether to use hdmap prediction as auxiliary loss for training.
-    self.use_route = True  # Whether to use route prediction as auxiliary loss for training(from PlanT).
-    self.use_vehicle_occupancy = True
-    self.use_pedestrian_occupancy = True
     self.num_repetitions = 1  # How many repetitions of the dataset we train with.
     self.continue_epoch = True  # Whether to continue the training from the loaded epoch or from 0.
+
+    # Auxiliary tasks
+    self.use_semantic = False  # Whether to use semantic segmentation as auxiliary loss    
+    self.use_bev_semantic = False  # Whether to use bev semantic segmentation as auxiliary loss for training.
+    self.use_depth = False # Whether to use depth prediction as auxiliary loss for training.
+    self.use_hdmap = False  # Whether to use hdmap prediction as auxiliary loss for training.
+    self.use_route = False  # Whether to use route prediction as auxiliary loss for training(from PlanT).
+    self.use_vehicle_occupancy = False
+    self.use_pedestrian_occupancy = False
+    self.use_bev_topo = False # Whether to use bev topology (BEV semantic without information overlap with bbox) as auxiliary loss for training.
+    self.use_occ = False #Wheter to predict occupancy as auxiliary loss for training.
+    self.use_trajectory = False #Wheter to predict trajectory as auxiliary loss for training.
 
     self.smooth_route = True  # Whether to smooth the route points with a spline.
     self.ignore_index = -999  # Index to ignore for future bounding box prediction task.
@@ -397,7 +406,6 @@ class GlobalConfig:
     self.use_wp_gru = False  # Whether to use the WP output GRU.
 
     # Semantic Segmentation
-    self.use_semantic = True  # Whether to use semantic segmentation as auxiliary loss
     self.num_semantic_classes = 7
     self.classes = {
         0: [0, 0, 0],  # unlabeled
@@ -457,6 +465,34 @@ class GlobalConfig:
         9,  # vehicle
         10,  # walker
     ]
+    
+    self.bev_topo_converter = [
+        0,  # unlabeled
+        1,  # road
+        2,  # sidewalk
+        3,  # lane_markers
+        4,  # lane_markers broken, you may cross them
+        0,  # stop_signs
+        1,  # traffic light green
+        1,  # traffic light yellow
+        1,  # traffic light red
+        1,  # vehicle
+        1,  # walker
+    ]
+    
+    self.occ_converter = [
+        0,  # unlabeled
+        0,  # road
+        0,  # sidewalk
+        0,  # lane_markers
+        0,  # lane_markers broken, you may cross them
+        0,  # stop_signs
+        0,  # traffic light green
+        0,  # traffic light yellow
+        0,  # traffic light red
+        1,  # vehicle
+        2,  # walker
+    ]
 
     # Color format BGR
     self.bev_classes_list = [
@@ -473,7 +509,14 @@ class GlobalConfig:
         [0, 255, 0],  # pedestrian
     ]
 
+    self.occ_classes_list = [
+        [0, 0, 0],  # unlabeled
+        [250, 170, 30],  # vehicle
+        [0, 255, 0],  # pedestrian
+    ]
+
     self.num_bev_semantic_classes = len(self.bev_converter)
+    self.num_occ_classes = 3
 
     self.deconv_channel_num_0 = 128  # Number of channels at the first deconvolution layer
     self.deconv_channel_num_1 = 64  # Number of channels at the second deconvolution layer

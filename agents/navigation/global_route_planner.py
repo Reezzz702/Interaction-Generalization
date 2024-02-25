@@ -15,6 +15,8 @@ import networkx as nx
 import carla
 from agents.navigation.local_planner import RoadOption
 from agents.tools.misc import vector
+from bird_eye_view.Mask import Loc
+
 
 class GlobalRoutePlanner(object):
     """
@@ -396,3 +398,34 @@ class GlobalRoutePlanner(object):
                 closest_index = i
 
         return closest_index
+
+class proxy_waypoint(object):
+    def __init__(self, coordinate):
+        self.transform = carla.Transform(carla.Location(x=coordinate[0], y=coordinate[1], z=0), carla.Rotation())
+        
+class proxy_command(object):
+    def __init__(self, command):
+        self.value = command
+        
+def get_proxy_route(path, route_index):
+    if route_index in [0,1,8,11]:
+        command = 1
+    elif route_index in [4,5,6,13]:
+        command = 2
+    else:
+        command = 3
+        
+    route_list = []
+    for i in range(len(path)):
+        loc = Loc(path[i][0], path[i][1])
+        wp = proxy_waypoint(loc)
+        cmd = proxy_command(command)
+        # put a None type command into route
+        route_list.append((wp, cmd))
+        
+    return route_list
+
+
+# LEFT = 1
+# RIGHT = 2
+# STRAIGHT = 3
