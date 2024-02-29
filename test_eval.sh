@@ -18,7 +18,7 @@ export SAVE_PATH=${WORK_DIR}/results/eval_mid
 
 
 killall -9 -r CarlaUE4-Linux 
-bash ${CARLA_ROOT}/CarlaUE4.sh &
+bash ${CARLA_ROOT}/CarlaUE4.sh -RenderOffScreen &
 
 sleep 5
 
