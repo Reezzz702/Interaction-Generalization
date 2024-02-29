@@ -157,7 +157,7 @@ cython_debug/
 
 # carla env
 /carla
-
+/carla_14
 
 test.py
 /ckpt
