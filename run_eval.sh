@@ -9,11 +9,12 @@ export PYTHONPATH=$PYTHONPATH:${WORK_DIR}/team_code
 
 export EVAL_CONFIG=${WORK_DIR}/eval_config/sensor_eval_easy.json
 export SENSOR_AGNET=${WORK_DIR}/SRL_agent
-export AGENT_CONFIG=${WORK_DIR}/checkpoints/WP
+export AGENT_CONFIG=${WORK_DIR}/checkpoints/BB_BS_wp
 export DIRECT=0
 export RESUME=1
-export CHECKPOINT_ENDPOINT=${WORK_DIR}/results/easy/WP/interaction.json
-export SAVE_PATH=${WORK_DIR}/results/easy/WP
+export REND=0
+export CHECKPOINT_ENDPOINT=${WORK_DIR}/results/easy/BB_BS/interaction.json
+export SAVE_PATH=${WORK_DIR}/results/easy/BB_BS
 
 
 killall -9 -r CarlaUE4-Linux 

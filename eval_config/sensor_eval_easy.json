@@ -10485,6 +10485,3632 @@
         21.4,
         270
       ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 294,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "auto",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            10.7,
+            -4.4
+          ],
+          "yaw": 270,
+          "route": 5
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 295,
+      "ego_agent": {
+        "type": "auto",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            10.7,
+            -4.4
+          ],
+          "yaw": 270,
+          "route": 5
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 296,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "plant",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            10.7,
+            -4.4
+          ],
+          "yaw": 270,
+          "route": 5
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 297,
+      "ego_agent": {
+        "type": "plant",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            10.7,
+            -4.4
+          ],
+          "yaw": 270,
+          "route": 5
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 298,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "roach",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            10.7,
+            -4.4
+          ],
+          "yaw": 270,
+          "route": 5
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 299,
+      "ego_agent": {
+        "type": "roach",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            10.7,
+            -4.4
+          ],
+          "yaw": 270,
+          "route": 5
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 300,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            10.7,
+            -4.4
+          ],
+          "yaw": 270,
+          "route": 5
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 301,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "auto",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            47.2,
+            1.8
+          ],
+          "yaw": 90,
+          "route": 8
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 302,
+      "ego_agent": {
+        "type": "auto",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            47.2,
+            1.8
+          ],
+          "yaw": 90,
+          "route": 8
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 303,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "plant",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            47.2,
+            1.8
+          ],
+          "yaw": 90,
+          "route": 8
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 304,
+      "ego_agent": {
+        "type": "plant",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            47.2,
+            1.8
+          ],
+          "yaw": 90,
+          "route": 8
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 305,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "roach",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            47.2,
+            1.8
+          ],
+          "yaw": 90,
+          "route": 8
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 306,
+      "ego_agent": {
+        "type": "roach",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            47.2,
+            1.8
+          ],
+          "yaw": 90,
+          "route": 8
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 307,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            47.2,
+            1.8
+          ],
+          "yaw": 90,
+          "route": 8
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 308,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "auto",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 9
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 309,
+      "ego_agent": {
+        "type": "auto",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 9
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 310,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "plant",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 9
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 311,
+      "ego_agent": {
+        "type": "plant",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 9
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 312,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "roach",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 9
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 313,
+      "ego_agent": {
+        "type": "roach",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 9
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 314,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 9
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 315,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "auto",
+          "start": [
+            41.5,
+            -1.7
+          ],
+          "dest": [
+            10.7,
+            -0.9
+          ],
+          "yaw": 180,
+          "route": 12
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 316,
+      "ego_agent": {
+        "type": "auto",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            41.5,
+            -1.7
+          ],
+          "dest": [
+            10.7,
+            -0.9
+          ],
+          "yaw": 180,
+          "route": 12
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 317,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "plant",
+          "start": [
+            41.5,
+            -1.7
+          ],
+          "dest": [
+            10.7,
+            -0.9
+          ],
+          "yaw": 180,
+          "route": 12
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 318,
+      "ego_agent": {
+        "type": "plant",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            41.5,
+            -1.7
+          ],
+          "dest": [
+            10.7,
+            -0.9
+          ],
+          "yaw": 180,
+          "route": 12
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 319,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "roach",
+          "start": [
+            41.5,
+            -1.7
+          ],
+          "dest": [
+            10.7,
+            -0.9
+          ],
+          "yaw": 180,
+          "route": 12
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 320,
+      "ego_agent": {
+        "type": "roach",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            41.5,
+            -1.7
+          ],
+          "dest": [
+            10.7,
+            -0.9
+          ],
+          "yaw": 180,
+          "route": 12
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 321,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            41.5,
+            -1.7
+          ],
+          "dest": [
+            10.7,
+            -0.9
+          ],
+          "yaw": 180,
+          "route": 12
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 322,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "auto",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            31.4,
+            -18.1
+          ],
+          "yaw": 270,
+          "route": 6
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 323,
+      "ego_agent": {
+        "type": "auto",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            31.4,
+            -18.1
+          ],
+          "yaw": 270,
+          "route": 6
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 324,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "plant",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            31.4,
+            -18.1
+          ],
+          "yaw": 270,
+          "route": 6
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 325,
+      "ego_agent": {
+        "type": "plant",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            31.4,
+            -18.1
+          ],
+          "yaw": 270,
+          "route": 6
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 326,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "roach",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            31.4,
+            -18.1
+          ],
+          "yaw": 270,
+          "route": 6
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 327,
+      "ego_agent": {
+        "type": "roach",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            31.4,
+            -18.1
+          ],
+          "yaw": 270,
+          "route": 6
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 328,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            31.4,
+            -18.1
+          ],
+          "yaw": 270,
+          "route": 6
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 329,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "auto",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            10.7,
+            -0.9
+          ],
+          "yaw": 270,
+          "route": 5
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 330,
+      "ego_agent": {
+        "type": "auto",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            10.7,
+            -0.9
+          ],
+          "yaw": 270,
+          "route": 5
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 331,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "plant",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            10.7,
+            -0.9
+          ],
+          "yaw": 270,
+          "route": 5
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 332,
+      "ego_agent": {
+        "type": "plant",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            10.7,
+            -0.9
+          ],
+          "yaw": 270,
+          "route": 5
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 333,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "roach",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            10.7,
+            -0.9
+          ],
+          "yaw": 270,
+          "route": 5
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 334,
+      "ego_agent": {
+        "type": "roach",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            10.7,
+            -0.9
+          ],
+          "yaw": 270,
+          "route": 5
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 335,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            10.7,
+            -0.9
+          ],
+          "yaw": 270,
+          "route": 5
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 336,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "auto",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 9
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 337,
+      "ego_agent": {
+        "type": "auto",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 9
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 338,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "plant",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 9
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 339,
+      "ego_agent": {
+        "type": "plant",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 9
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 340,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "roach",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 9
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 341,
+      "ego_agent": {
+        "type": "roach",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 9
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 342,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 9
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 343,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "auto",
+          "start": [
+            41.5,
+            -1.7
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 180,
+          "route": 11
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 344,
+      "ego_agent": {
+        "type": "auto",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            41.5,
+            -1.7
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 180,
+          "route": 11
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 345,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "plant",
+          "start": [
+            41.5,
+            -1.7
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 180,
+          "route": 11
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 346,
+      "ego_agent": {
+        "type": "plant",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            41.5,
+            -1.7
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 180,
+          "route": 11
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 347,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "roach",
+          "start": [
+            41.5,
+            -1.7
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 180,
+          "route": 11
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 348,
+      "ego_agent": {
+        "type": "roach",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            41.5,
+            -1.7
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 180,
+          "route": 11
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 349,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          1.8
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            41.5,
+            -1.7
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 180,
+          "route": 11
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 350,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "auto",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            31.4,
+            -18.1
+          ],
+          "yaw": 270,
+          "route": 6
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 351,
+      "ego_agent": {
+        "type": "auto",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            31.4,
+            -18.1
+          ],
+          "yaw": 270,
+          "route": 6
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 352,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "plant",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            31.4,
+            -18.1
+          ],
+          "yaw": 270,
+          "route": 6
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 353,
+      "ego_agent": {
+        "type": "plant",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            31.4,
+            -18.1
+          ],
+          "yaw": 270,
+          "route": 6
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 354,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "roach",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            31.4,
+            -18.1
+          ],
+          "yaw": 270,
+          "route": 6
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 355,
+      "ego_agent": {
+        "type": "roach",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            31.4,
+            -18.1
+          ],
+          "yaw": 270,
+          "route": 6
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 356,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          31.4,
+          -18.1
+        ],
+        "yaw": 0,
+        "route": 0
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.6,
+            14.1
+          ],
+          "dest": [
+            31.4,
+            -18.1
+          ],
+          "yaw": 270,
+          "route": 6
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 357,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          26.6,
+          1.4
+        ],
+        "dest": [
+          34.9,
+          -18.1
+        ],
+        "yaw": 330,
+        "route": 1
+      },
+      "other_agents": [
+        {
+          "type": "auto",
+          "start": [
+            47.2,
+            -5.2
+          ],
+          "dest": [
+            34.9,
+            -18.1
+          ],
+          "yaw": 180,
+          "route": 13
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 358,
+      "ego_agent": {
+        "type": "auto",
+        "start": [
+          26.6,
+          1.4
+        ],
+        "dest": [
+          34.9,
+          -18.1
+        ],
+        "yaw": 330,
+        "route": 1
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            47.2,
+            -5.2
+          ],
+          "dest": [
+            34.9,
+            -18.1
+          ],
+          "yaw": 180,
+          "route": 13
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 359,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          26.6,
+          1.4
+        ],
+        "dest": [
+          34.9,
+          -18.1
+        ],
+        "yaw": 330,
+        "route": 1
+      },
+      "other_agents": [
+        {
+          "type": "plant",
+          "start": [
+            47.2,
+            -5.2
+          ],
+          "dest": [
+            34.9,
+            -18.1
+          ],
+          "yaw": 180,
+          "route": 13
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 360,
+      "ego_agent": {
+        "type": "plant",
+        "start": [
+          26.6,
+          1.4
+        ],
+        "dest": [
+          34.9,
+          -18.1
+        ],
+        "yaw": 330,
+        "route": 1
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            47.2,
+            -5.2
+          ],
+          "dest": [
+            34.9,
+            -18.1
+          ],
+          "yaw": 180,
+          "route": 13
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 361,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          26.6,
+          1.4
+        ],
+        "dest": [
+          34.9,
+          -18.1
+        ],
+        "yaw": 330,
+        "route": 1
+      },
+      "other_agents": [
+        {
+          "type": "roach",
+          "start": [
+            47.2,
+            -5.2
+          ],
+          "dest": [
+            34.9,
+            -18.1
+          ],
+          "yaw": 180,
+          "route": 13
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 362,
+      "ego_agent": {
+        "type": "roach",
+        "start": [
+          26.6,
+          1.4
+        ],
+        "dest": [
+          34.9,
+          -18.1
+        ],
+        "yaw": 330,
+        "route": 1
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            47.2,
+            -5.2
+          ],
+          "dest": [
+            34.9,
+            -18.1
+          ],
+          "yaw": 180,
+          "route": 13
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 363,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          26.6,
+          1.4
+        ],
+        "dest": [
+          34.9,
+          -18.1
+        ],
+        "yaw": 330,
+        "route": 1
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            47.2,
+            -5.2
+          ],
+          "dest": [
+            34.9,
+            -18.1
+          ],
+          "yaw": 180,
+          "route": 13
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 364,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          27.7,
+          5.6
+        ],
+        "dest": [
+          47.2,
+          5.1
+        ],
+        "yaw": 0,
+        "route": 3
+      },
+      "other_agents": [
+        {
+          "type": "auto",
+          "start": [
+            35.1,
+            15.6
+          ],
+          "dest": [
+            47.2,
+            5.1
+          ],
+          "yaw": 270,
+          "route": 7
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 365,
+      "ego_agent": {
+        "type": "auto",
+        "start": [
+          27.7,
+          5.6
+        ],
+        "dest": [
+          47.2,
+          5.1
+        ],
+        "yaw": 0,
+        "route": 3
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            35.1,
+            15.6
+          ],
+          "dest": [
+            47.2,
+            5.1
+          ],
+          "yaw": 270,
+          "route": 7
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 366,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          27.7,
+          5.6
+        ],
+        "dest": [
+          47.2,
+          5.1
+        ],
+        "yaw": 0,
+        "route": 3
+      },
+      "other_agents": [
+        {
+          "type": "plant",
+          "start": [
+            35.1,
+            15.6
+          ],
+          "dest": [
+            47.2,
+            5.1
+          ],
+          "yaw": 270,
+          "route": 7
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 367,
+      "ego_agent": {
+        "type": "plant",
+        "start": [
+          27.7,
+          5.6
+        ],
+        "dest": [
+          47.2,
+          5.1
+        ],
+        "yaw": 0,
+        "route": 3
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            35.1,
+            15.6
+          ],
+          "dest": [
+            47.2,
+            5.1
+          ],
+          "yaw": 270,
+          "route": 7
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 368,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          27.7,
+          5.6
+        ],
+        "dest": [
+          47.2,
+          5.1
+        ],
+        "yaw": 0,
+        "route": 3
+      },
+      "other_agents": [
+        {
+          "type": "roach",
+          "start": [
+            35.1,
+            15.6
+          ],
+          "dest": [
+            47.2,
+            5.1
+          ],
+          "yaw": 270,
+          "route": 7
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 369,
+      "ego_agent": {
+        "type": "roach",
+        "start": [
+          27.7,
+          5.6
+        ],
+        "dest": [
+          47.2,
+          5.1
+        ],
+        "yaw": 0,
+        "route": 3
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            35.1,
+            15.6
+          ],
+          "dest": [
+            47.2,
+            5.1
+          ],
+          "yaw": 270,
+          "route": 7
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 370,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          27.7,
+          5.6
+        ],
+        "dest": [
+          47.2,
+          5.1
+        ],
+        "yaw": 0,
+        "route": 3
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            35.1,
+            15.6
+          ],
+          "dest": [
+            47.2,
+            5.1
+          ],
+          "yaw": 270,
+          "route": 7
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 371,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          5.1
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "auto",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            47.2,
+            5.1
+          ],
+          "yaw": 90,
+          "route": 8
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 372,
+      "ego_agent": {
+        "type": "auto",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          5.1
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            47.2,
+            5.1
+          ],
+          "yaw": 90,
+          "route": 8
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 373,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          5.1
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "plant",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            47.2,
+            5.1
+          ],
+          "yaw": 90,
+          "route": 8
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 374,
+      "ego_agent": {
+        "type": "plant",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          5.1
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            47.2,
+            5.1
+          ],
+          "yaw": 90,
+          "route": 8
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 375,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          5.1
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "roach",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            47.2,
+            5.1
+          ],
+          "yaw": 90,
+          "route": 8
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 376,
+      "ego_agent": {
+        "type": "roach",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          5.1
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            47.2,
+            5.1
+          ],
+          "yaw": 90,
+          "route": 8
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 377,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          2.6
+        ],
+        "dest": [
+          47.2,
+          5.1
+        ],
+        "yaw": 0,
+        "route": 2
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            27.9,
+            -18.1
+          ],
+          "dest": [
+            47.2,
+            5.1
+          ],
+          "yaw": 90,
+          "route": 8
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 378,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          6.0
+        ],
+        "dest": [
+          24.6,
+          18.1
+        ],
+        "yaw": 0,
+        "route": 4
+      },
+      "other_agents": [
+        {
+          "type": "auto",
+          "start": [
+            24.4,
+            -3.0
+          ],
+          "dest": [
+            24.6,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 10
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 379,
+      "ego_agent": {
+        "type": "auto",
+        "start": [
+          13.7,
+          6.0
+        ],
+        "dest": [
+          24.6,
+          18.1
+        ],
+        "yaw": 0,
+        "route": 4
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            24.4,
+            -3.0
+          ],
+          "dest": [
+            24.6,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 10
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 380,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          6.0
+        ],
+        "dest": [
+          24.6,
+          18.1
+        ],
+        "yaw": 0,
+        "route": 4
+      },
+      "other_agents": [
+        {
+          "type": "plant",
+          "start": [
+            24.4,
+            -3.0
+          ],
+          "dest": [
+            24.6,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 10
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 381,
+      "ego_agent": {
+        "type": "plant",
+        "start": [
+          13.7,
+          6.0
+        ],
+        "dest": [
+          24.6,
+          18.1
+        ],
+        "yaw": 0,
+        "route": 4
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            24.4,
+            -3.0
+          ],
+          "dest": [
+            24.6,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 10
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 382,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          6.0
+        ],
+        "dest": [
+          24.6,
+          18.1
+        ],
+        "yaw": 0,
+        "route": 4
+      },
+      "other_agents": [
+        {
+          "type": "roach",
+          "start": [
+            24.4,
+            -3.0
+          ],
+          "dest": [
+            24.6,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 10
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 383,
+      "ego_agent": {
+        "type": "roach",
+        "start": [
+          13.7,
+          6.0
+        ],
+        "dest": [
+          24.6,
+          18.1
+        ],
+        "yaw": 0,
+        "route": 4
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            24.4,
+            -3.0
+          ],
+          "dest": [
+            24.6,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 10
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 384,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          6.0
+        ],
+        "dest": [
+          24.6,
+          18.1
+        ],
+        "yaw": 0,
+        "route": 4
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            24.4,
+            -3.0
+          ],
+          "dest": [
+            24.6,
+            18.1
+          ],
+          "yaw": 90,
+          "route": 10
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 385,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          6.0
+        ],
+        "dest": [
+          24.6,
+          18.1
+        ],
+        "yaw": 0,
+        "route": 4
+      },
+      "other_agents": [
+        {
+          "type": "auto",
+          "start": [
+            31.5,
+            0.6
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 150,
+          "route": 11
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 386,
+      "ego_agent": {
+        "type": "auto",
+        "start": [
+          13.7,
+          6.0
+        ],
+        "dest": [
+          24.6,
+          18.1
+        ],
+        "yaw": 0,
+        "route": 4
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.5,
+            0.6
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 150,
+          "route": 11
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 387,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          6.0
+        ],
+        "dest": [
+          24.6,
+          18.1
+        ],
+        "yaw": 0,
+        "route": 4
+      },
+      "other_agents": [
+        {
+          "type": "plant",
+          "start": [
+            31.5,
+            0.6
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 150,
+          "route": 11
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 388,
+      "ego_agent": {
+        "type": "plant",
+        "start": [
+          13.7,
+          6.0
+        ],
+        "dest": [
+          24.6,
+          18.1
+        ],
+        "yaw": 0,
+        "route": 4
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.5,
+            0.6
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 150,
+          "route": 11
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 389,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          6.0
+        ],
+        "dest": [
+          24.6,
+          18.1
+        ],
+        "yaw": 0,
+        "route": 4
+      },
+      "other_agents": [
+        {
+          "type": "roach",
+          "start": [
+            31.5,
+            0.6
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 150,
+          "route": 11
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 390,
+      "ego_agent": {
+        "type": "roach",
+        "start": [
+          13.7,
+          6.0
+        ],
+        "dest": [
+          24.6,
+          18.1
+        ],
+        "yaw": 0,
+        "route": 4
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.5,
+            0.6
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 150,
+          "route": 11
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
+    },
+    {
+      "Town": "Town05",
+      "Index": 391,
+      "ego_agent": {
+        "type": "sensor",
+        "start": [
+          13.7,
+          6.0
+        ],
+        "dest": [
+          24.6,
+          18.1
+        ],
+        "yaw": 0,
+        "route": 4
+      },
+      "other_agents": [
+        {
+          "type": "sensor",
+          "start": [
+            31.5,
+            0.6
+          ],
+          "dest": [
+            28.2,
+            18.1
+          ],
+          "yaw": 150,
+          "route": 11
+        }
+      ],
+      "center": [
+        29.55,
+        0.85,
+        0
+      ]
     }
   ]
 }

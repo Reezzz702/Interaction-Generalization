@@ -77,7 +77,7 @@ class World(object):
 		settings.synchronous_mode = True  # Enables synchronous mode
 		self.world.apply_settings(settings)
 		self.actor_role_name = args.rolename
-		
+		self.rend = int(os.environ.get("REND", 0))		
 
 		try:
 			self.map = self.world.get_map()
@@ -129,8 +129,6 @@ class World(object):
 		self.constant_velocity_enabled = False
 		self.current_map_layer = 0
 		self.surface = None
-
-		
 
 	def restart(self):
 		self.player_max_speed = 1.3 #1.589
@@ -208,9 +206,10 @@ class World(object):
 		image = image[:, :, ::-1]
 
 		# render the view shown in monitor
-		self.surface = pygame.surfarray.make_surface(image.swapaxes(0, 1))
-		if self.surface is not None:
-				display.blit(self.surface, (0, 0))
+		if self.rend:
+			self.surface = pygame.surfarray.make_surface(image.swapaxes(0, 1))
+			if self.surface is not None:
+					display.blit(self.surface, (0, 0))
 		return image
 
 	def destroy_sensors(self):
@@ -228,13 +227,13 @@ class World(object):
 class HUD(object):
 	def __init__(self, width, height, distance=25.0, town='Town05', v_id=1):
 		self.dim = (width, height)
-		font = pygame.font.Font(pygame.font.get_default_font(), 20)
+		# font = pygame.font.Font(pygame.font.get_default_font(), 20)
 		font_name = 'courier' if os.name == 'nt' else 'mono'
 		fonts = [x for x in pygame.font.get_fonts() if font_name in x]
 		default_font = 'ubuntumono'
 		mono = default_font if default_font in fonts else fonts[0]
-		mono = pygame.font.match_font(mono)
-		self._font_mono = pygame.font.Font(mono, 12 if os.name == 'nt' else 14)
+		# mono = pygame.font.match_font(mono)
+		# self._font_mono = pygame.font.Font(mono, 12 if os.name == 'nt' else 14)
 		# self._notifications = FadingText(font, (width, 40), (0, height - 40))
 		# self.help = HelpText(pygame.font.Font(mono, 16), width, height)
 		self.server_fps = 0
@@ -357,57 +356,57 @@ class HUD(object):
 # ==============================================================================
 # -- FadingText ----------------------------------------------------------------
 # ==============================================================================
-class FadingText(object):
-	def __init__(self, font, dim, pos):
-		self.font = font
-		self.dim = dim
-		self.pos = pos
-		self.seconds_left = 0
-		self.surface = pygame.Surface(self.dim)
+# class FadingText(object):
+# 	def __init__(self, font, dim, pos):
+# 		self.font = font
+# 		self.dim = dim
+# 		self.pos = pos
+# 		self.seconds_left = 0
+# 		# self.surface = pygame.Surface(self.dim)
 
-	def set_text(self, text, color=(255, 255, 255), seconds=2.0):
-		text_texture = self.font.render(text, True, color)
-		self.surface = pygame.Surface(self.dim)
-		self.seconds_left = seconds
-		self.surface.fill((0, 0, 0, 0))
-		self.surface.blit(text_texture, (10, 11))
+# 	def set_text(self, text, color=(255, 255, 255), seconds=2.0):
+# 		text_texture = self.font.render(text, True, color)
+# 		# self.surface = pygame.Surface(self.dim)
+# 		self.seconds_left = seconds
+# 		self.surface.fill((0, 0, 0, 0))
+# 		self.surface.blit(text_texture, (10, 11))
 
-	def tick(self, _, clock):
-		delta_seconds = 1e-3 * clock.get_time()
-		self.seconds_left = max(0.0, self.seconds_left - delta_seconds)
-		self.surface.set_alpha(500.0 * self.seconds_left)
+# 	def tick(self, _, clock):
+# 		delta_seconds = 1e-3 * clock.get_time()
+# 		self.seconds_left = max(0.0, self.seconds_left - delta_seconds)
+# 		self.surface.set_alpha(500.0 * self.seconds_left)
 
-	def render(self, display):
-		display.blit(self.surface, self.pos)
+# 	def render(self, display):
+# 		display.blit(self.surface, self.pos)
 
 
 # ==============================================================================
 # -- HelpText ------------------------------------------------------------------
 # ==============================================================================
-class HelpText(object):
-	"""Helper class to handle text output using pygame"""
+# class HelpText(object):
+# 	"""Helper class to handle text output using pygame"""
 
-	def __init__(self, font, width, height):
-		lines = __doc__.split('\n')
-		self.font = font
-		self.line_space = 18
-		self.dim = (780, len(lines) * self.line_space + 12)
-		self.pos = (0.5 * width - 0.5 * self.dim[0], 0.5 * height - 0.5 * self.dim[1])
-		self.seconds_left = 0
-		self.surface = pygame.Surface(self.dim)
-		self.surface.fill((0, 0, 0, 0))
-		for n, line in enumerate(lines):
-			text_texture = self.font.render(line, True, (255, 255, 255))
-			self.surface.blit(text_texture, (22, n * self.line_space))
-			self._render = False
-		self.surface.set_alpha(220)
+# 	def __init__(self, font, width, height):
+# 		lines = __doc__.split('\n')
+# 		self.font = font
+# 		self.line_space = 18
+# 		self.dim = (780, len(lines) * self.line_space + 12)
+# 		self.pos = (0.5 * width - 0.5 * self.dim[0], 0.5 * height - 0.5 * self.dim[1])
+# 		self.seconds_left = 0
+# 		# self.surface = pygame.Surface(self.dim)
+# 		self.surface.fill((0, 0, 0, 0))
+# 		for n, line in enumerate(lines):
+# 			text_texture = self.font.render(line, True, (255, 255, 255))
+# 			# self.surface.blit(text_texture, (22, n * self.line_space))
+# 			self._render = False
+# 		self.surface.set_alpha(220)
 
-	def toggle(self):
-		self._render = not self._render
+# 	def toggle(self):
+# 		self._render = not self._render
 
-	def render(self, display):
-		if self._render:
-			display.blit(self.surface, self.pos)
+# 	def render(self, display):
+# 		if self._render:
+# 			display.blit(self.surface, self.pos)
 
 			
 def get_actor_blueprints(world, filter, generation):
@@ -527,40 +526,6 @@ def init_multi_agent(args, world, planner, scenario, roach_policy=None):
 	return sensor_agent_list, interactive_agent_list
 
 
-assigned_location_dict = {
-  'Town05':{
-		'E1': (13.7, 2.6),
-		'E2': (13.7, 6.0),
-		'E3': (47.2, 1.8),
-		'E4': (47.2, 5.1),
-		'A1': (31.6, 18.1),
-		'A2': (35.1, 18.1),
-		'A3': (31.4, -18.1),
-		'A4': (34.9, -18.1),
-		'B1': (27.9, -18.1),
-		'B2': (24.4, -18.1),
-		'B3': (28.2, 18.1),
-		'B4': (24.6, 18.1),
-		'C1': (47.2, -1.7),
-		'C2': (47.2, -5.2),
-		'C3': (10.7, -0.9),
-		'C4': (10.7, -4.4),
-		'center': (29.550, 0.85)
-	},
-	'Town04':{
-		'E1': (241.9, -246.0),
-		'E3': (275.9, -246.0),
-		'A1': (258.8, -234.4),
-		'A3': (258.8, -261.8),
-		'B1': (255.1, -260.8),
-		'B3': (255.1, -226.8),
-		'C1': (265.9, -249.7),
-		'C3': (241.9, -249.7),
-		'center': (257.0, -247.4)
-	}
-}
-
-
 # ==============================================================================
 # -- game_loop() ---------------------------------------------------------------
 # ==============================================================================
@@ -569,6 +534,7 @@ def game_loop(args):
 	eval_config = json.load(f)
 	checkpoint = parse_checkpoint(args.checkpoint, args.resume)
 	num_scenarios = len(eval_config['available_scenarios'])
+   
 	if checkpoint['progress'] and bool(args.resume):
 		resume = checkpoint['progress'][0]
 		if resume == num_scenarios:
@@ -582,6 +548,7 @@ def game_loop(args):
 	if args.record:
 		os.makedirs(f'{save_path}/gifs', exist_ok=True)
 
+	show = os.environ.get("REND", 0)
 	for scenario in eval_config["available_scenarios"][resume:]:
 		scenario_index = scenario["Index"]
 		town = scenario['Town']
@@ -592,13 +559,17 @@ def game_loop(args):
 		client.set_timeout(10.0)
 
 		# Initialize pygame
-		pygame.init()
-		pygame.font.init()
-		display = pygame.display.set_mode(
-			(512, 512),
-			pygame.HWSURFACE | pygame.DOUBLEBUF)
-		display.fill((0,0,0))
-		pygame.display.flip()
+		if int(show) > 0:
+			print("display")
+			pygame.init()
+			pygame.font.init()
+			display = pygame.display.set_mode(
+				(512, 512),
+				pygame.HWSURFACE | pygame.DOUBLEBUF)
+			display.fill((0,0,0))
+			pygame.display.flip()
+		else:
+			display = None
 		
 		hud = HUD(args.width, args.height, args.distance, town)
 		world = World(client.load_world(town), hud, args, scenario['center'])
@@ -626,11 +597,14 @@ def game_loop(args):
 			frame = world.world.tick()
 			if not start_frame:
 				start_frame = frame
-		
-			view = pygame.surfarray.array3d(display)
-			view = view.transpose([1, 0, 2]) 
-			image = cv2.cvtColor(view, cv2.COLOR_RGB2BGR)        
-
+			
+			if display:
+				view = pygame.surfarray.array3d(display)
+				view = view.transpose([1, 0, 2]) 
+				image = cv2.cvtColor(view, cv2.COLOR_RGB2BGR)        
+			else:
+				image = None
+    
 			world.tick(clock, frame, image)
 			avg_FPS = 0.98 * avg_FPS + 0.02 * clock.get_fps()
 			
@@ -723,7 +697,8 @@ def game_loop(args):
 
 			################### Render scene in both sever and client. #####################
 			bev_image = world.render(display, frame)
-			pygame.display.flip()
+			if display:
+				pygame.display.flip()
 			if save_path and args.record and frame%5 == 0:
 				image_buffer.append(Image.fromarray(bev_image))
 
@@ -807,7 +782,8 @@ def game_loop(args):
         loop=0,  # 0 means an infinite loop
 			)
 		
-		pygame.quit()
+		if display:
+			pygame.quit()
 		logging.debug(f"Finish scenario{scenario_index}")
   
 	avg_completion_time = 0
@@ -817,8 +793,8 @@ def game_loop(args):
 		avg_completion_time += record['Completion Time']
 		success_rate += record['Success']
 		collision_rate += record['Collisions']
-	
-	
+	print(success_rate)
+	print(num_scenarios)
 	avg_completion_time /= num_scenarios
 	success_rate /= num_scenarios
 	collision_rate /= num_scenarios
