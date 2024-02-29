@@ -705,7 +705,8 @@ def game_loop(args):
 			################### Check if all agent complete the scenario. #####################
 			scene_done = 1
 			for agent_dict in all_agent_list:
-				scene_done = scene_done and agent_dict['done']
+				if agent_dict['name'] == 'sensor':
+					scene_done = scene_done and agent_dict['done']
 			if scene_done:
 				fps = (frame - start_frame)/hud.simulation_time
 				finish_time = hud.simulation_time

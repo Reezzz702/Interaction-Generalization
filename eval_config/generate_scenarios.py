@@ -4,7 +4,7 @@ from copy import deepcopy
 agents = ["auto", "plant", "roach", "sensor"]
 eavl_agent = "sensor"
 
-f = open("eval_easy.json")
+f = open("eval_mid.json")
 eval_config = json.load(f)
 scenario_list = []
 index = 0
@@ -29,5 +29,5 @@ for scenario in eval_config['available_scenarios']:
     scenario_list.append(temp_scenario)
     
 eval_config['available_scenarios'] = scenario_list
-with open(f"{eavl_agent}_eval_easy.json", 'w') as fd:
+with open(f"{eavl_agent}_eval_mid.json", 'w') as fd:
   json.dump(eval_config, fd, indent=2, sort_keys=False)
