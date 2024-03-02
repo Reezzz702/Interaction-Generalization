@@ -9,15 +9,16 @@ export PYTHONPATH=$PYTHONPATH:${WORK_DIR}/team_code
 
 export EVAL_CONFIG=${WORK_DIR}/eval_config/sensor_eval_easy.json
 export SENSOR_AGNET=${WORK_DIR}/SRL_agent
-export AGENT_CONFIG=${WORK_DIR}/checkpoints/BB_DS_wp
+export AGENT_CONFIG=${WORK_DIR}/checkpoints/DS_R_wp
 export DIRECT=0
 export RESUME=1
-export CHECKPOINT_ENDPOINT=${WORK_DIR}/results/easy/BB_DS/interaction.json
-export SAVE_PATH=${WORK_DIR}/results/easy/BB_DS
+export REND=0
+export CHECKPOINT_ENDPOINT=${WORK_DIR}/results/easy/DS_R/interaction.json
+export SAVE_PATH=${WORK_DIR}/results/easy/DS_R
 
 
 killall -9 -r CarlaUE4-Linux 
-bash ${CARLA_ROOT}/CarlaUE4.sh &
+bash ${CARLA_ROOT}/CarlaUE4.sh -RenderOffScreen &
 
 sleep 5
 
@@ -28,7 +29,7 @@ python multi_agent_eval.py \
 --checkpoint ${CHECKPOINT_ENDPOINT} \
 --resume ${RESUME}
 
-sleep 5
+sleep 3
 
 killall -9 -r CarlaUE4-Linux 
 
