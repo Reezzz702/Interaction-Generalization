@@ -18,13 +18,13 @@ from __future__ import print_function
 import glob
 import os
 import sys
-try:
-	sys.path.append(glob.glob('/home/hcis-s15/Documents/Homework/IDS_s24/HW0/carla_14/PythonAPI/carla/dist/carla-*%d.%d-%s.egg' % (
-		sys.version_info.major,
-		sys.version_info.minor,
-		'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
-except IndexError:
-	pass
+# try:
+# 	sys.path.append(glob.glob('/home/hcis-s15/Documents/Homework/IDS_s24/HW0/carla_14/PythonAPI/carla/dist/carla-*%d.%d-%s.egg' % (
+# 		sys.version_info.major,
+# 		sys.version_info.minor,
+# 		'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
+# except IndexError:
+# 	pass
 
 
 # ==============================================================================
