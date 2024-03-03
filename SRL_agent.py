@@ -137,7 +137,7 @@ class SRLAgent():
     self.lidar_buffer = deque(maxlen=self.config.lidar_seq_len * self.config.data_save_freq)
     self.lidar_last = None
     self.initialized = False
-    control = carla.VehicleControl(steer=0.0, throttle=0.0, brake=1.0)
+    control = carla.VehicleControl(steer=0.0, throttle=0.3, brake=0.0)
     self.control = control
     
     self.data = CARLA_Data(root=[], config=self.config, shared_dict=None)
@@ -278,7 +278,7 @@ class SRLAgent():
     
     if not self.initialized:
       self.initialized = True
-      control = carla.VehicleControl(steer=0.0, throttle=0.0, brake=1.0)
+      control = carla.VehicleControl(steer=0.0, throttle=0.3, brake=0.0)
       self.control = control
       if "lidar" in tick_data:
         self.lidar_last = deepcopy(tick_data['lidar'])
@@ -309,7 +309,7 @@ class SRLAgent():
       # We wait until we have sufficient LiDARs
     if len(self.lidar_buffer) < (self.config.lidar_seq_len * self.config.data_save_freq):
       self.lidar_last = deepcopy(tick_data['lidar'])
-      tmp_control = carla.VehicleControl(0.0, 0.0, 1.0)
+      tmp_control = carla.VehicleControl(0.0, 0.3, 0.0)
       self.control = tmp_control
 
       input_data['control'] = tmp_control
@@ -478,7 +478,7 @@ class SRLAgent():
     # CARLA will not let the car drive in the initial frames.
     # We set the action to brake so that the filter does not get confused.
     if self.step < self.config.inital_frames_delay:
-      self.control = carla.VehicleControl(0.0, 0.0, 1.0)
+      self.control = carla.VehicleControl(0.0, 0.3, 0.0)
     else:
       self.control = control
 

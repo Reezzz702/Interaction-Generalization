@@ -6,15 +6,17 @@ export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI
 export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI/carla
 export PYTHONPATH=$PYTHONPATH:$CARLA_ROOT/PythonAPI/carla/dist/carla-0.9.14-py3.7-linux-x86_64.egg
 export PYTHONPATH=$PYTHONPATH:${WORK_DIR}/team_code
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/hcis-s16/miniconda3/lib
+
 
 export EVAL_CONFIG=${WORK_DIR}/eval_config/sensor_eval_easy.json
 export SENSOR_AGNET=${WORK_DIR}/SRL_agent
-export AGENT_CONFIG=${WORK_DIR}/checkpoints/BB_BS_wp
+export AGENT_CONFIG=${WORK_DIR}/checkpoints/BS_R_wp
 export DIRECT=0
 export RESUME=1
 export REND=0
-export CHECKPOINT_ENDPOINT=${WORK_DIR}/results/easy/BB_BS/interaction.json
-export SAVE_PATH=${WORK_DIR}/results/easy/BB_BS
+export CHECKPOINT_ENDPOINT=${WORK_DIR}/results/easy/BS_R/interaction.json
+export SAVE_PATH=${WORK_DIR}/results/easy/BS_R
 
 
 killall -9 -r CarlaUE4-Linux 
