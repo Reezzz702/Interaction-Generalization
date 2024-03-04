@@ -23,7 +23,7 @@ import os
 from stp3_utils import VehicleDecoder, PedestrianDecoder, SegmentationLoss
 from video_swin_transformer import SwinTransformer3D
 from video_resnet import VideoResNet
-from torchvision.models import resnet18
+from resnet import resnet18
 
 
 class LidarCenterNet(nn.Module):
@@ -251,7 +251,7 @@ class LidarCenterNet(nn.Module):
    
 		if self.config.use_trajectory:
 			self.cast_grus_other = nn.ModuleList([nn.GRU(512, 32, batch_first=True) for _ in range(6)])
-			self.cast_mlps_other = nn.ModuleList([nn.Linear(64, 2) for _ in range(6)])
+			self.cast_mlps_other = nn.ModuleList([nn.Linear(32, 2) for _ in range(6)])
 			self.lidar_conv_emb = nn.Sequential(
             resnet18(num_channels=64),
             nn.AdaptiveAvgPool2d((1,1)),
@@ -457,7 +457,7 @@ class LidarCenterNet(nn.Module):
 		if self.config.tp_attention:
 			nn.init.uniform_(self.tp_pos_embed)
 
-	def forward(self, rgb, lidar_bev, target_point, ego_vel, command):
+	def forward(self, rgb, lidar_bev, target_point, ego_vel, command, locs=None, oris=None, typ=None):
 		bs = rgb.shape[0]
 
 		# lidar_features_layer is the output of the last transfomer encoder, would be none, if there is representation decoded from lidar branch
@@ -680,35 +680,55 @@ class LidarCenterNet(nn.Module):
 			gru_features = joined_route_features[:, :self.config.predict_checkpoint_len]
 			pred_route = self.route_decoder(gru_features, target_point)
    
-		if self.config.use_trajectory:
-			bbs_vehicle_coordinate_system = self.convert_features_to_bb_metric(pred_bounding_box)
-			locs = []
-			oris = []
-			for det in bbs_vehicle_coordinate_system:
-				locs.append([det[1], det[0]])
-				oris.append(det[4])
-    
-			locs = torch.tensor(locs, dtype=torch.float32).to(bev_feature_grid.device)
-			oris = torch.tensor(oris, dtype=torch.float32).to(bev_feature_grid.device)
-   
-			N = len(locs)
-			N_features = bev_feature_grid.expand(N, *bev_feature_grid.size())
-
-			if N > 0:
-					cropped_other_features = self.crop_feature(
-							N_features, locs, oris, 
-							pixels_per_meter=self.pixels_per_meter, 
+		pred_traj = None
+		if self.config.use_trajectory and locs:
+			N = locs.size(1)
+			if int(typ.float().sum()) > 0:
+				N_features = bev_feature_grid.expand(N, *bev_feature_grid.size()).permute(1,0,2,3,4).contiguous()[typ]
+				# if N_features.size(0) == 1:
+				# 	print(typ)
+				# print(f"N_features.shape {N_features.shape}")
+				loc = locs[typ]
+				ori = oris[typ]
+				cropped_features = self.crop_feature(
+							N_features, loc, ori, 
+							pixels_per_meter=self.config.pixels_per_meter, 
 							crop_size=32
 					)
-					other_embd = self.lidar_conv_emb(cropped_other_features)
-					other_cast_locs = self.cast(other_embd, mode='other')
-					other_cast_locs = transform_points(other_cast_locs, oris[:,None].repeat(1,self.num_cmds))
-					other_cast_locs += locs.view(N,1,1,2)
+				other_embd = self.lidar_conv_emb(cropped_features)
+				pred_traj = self.cast(other_embd)
+				# print(f"pred_traj.shape {pred_traj.shape}")
 			else:
-					other_cast_locs = torch.zeros((N,self.num_cmds,self.num_plan,2))
-
+				dtype = bev_feature_grid.dtype
+				device = bev_feature_grid.device
+    
+				pred_traj = torch.zeros((N,6,self.config.pred_len,2), dtype=dtype, device=device)	
+ 
+ 
+ 
+			# B = locs.size(0)
+			# pred_traj = []
+			# for batch_index in range(B):
+			# 	N = num_veh[batch_index]
+			# 	cast_traj_padded = torch.zeros((self.config.max_num_bbs, 6, self.config.pred_len, 2))
+			# 	if N > 0:
+			# 		N_features = bev_feature_grid[batch_index].expand(N, *bev_feature_grid[batch_index].size()).contiguous()
+			# 		cropped_other_features = self.crop_feature(
+			# 				N_features, locs[batch_index][:N], oris[batch_index][:N], 
+			# 				pixels_per_meter=self.config.pixels_per_meter, 
+			# 				crop_size=32
+			# 		)
+				
+			# 	other_embd = self.lidar_conv_emb(cropped_other_features)
+			# 	cast_traj = self.cast(other_embd)
+			# 	cast_traj_padded[:N, ...] = cast_traj
+			# 		# pred_traj = transform_points(pred_traj, oris[:,None].repeat(1,self.num_cmds))
+			# 		# pred_traj += locs.view(N,1,1,2)
+			# 	pred_traj.append(cast_traj_padded)
+    
+			# pred_traj = torch.stack(pred_traj, dim=0).to(bev_feature_grid.device)
 		return pred_wp, pred_target_speed, pred_checkpoint, pred_semantic, pred_bev_semantic, pred_bev_topo, pred_depth, \
-				pred_hdmap, pred_route, pred_vehicle_occupancy, pred_pedestrian_occupancy, pred_bounding_box, pred_occ, attention_weights, pred_wp_1, selected_path
+				pred_hdmap, pred_route, pred_traj, pred_vehicle_occupancy, pred_pedestrian_occupancy, pred_bounding_box, pred_occ, attention_weights, pred_wp_1, selected_path
 
 	def forward_layer_block(self, layers, return_layers, features):
 		"""
@@ -726,8 +746,8 @@ class LidarCenterNet(nn.Module):
 		return features
 
 	def compute_loss(self, pred_wp, pred_target_speed, pred_checkpoint, pred_semantic, pred_bev_semantic, pred_bev_topo, pred_depth, pred_hdmap,
-									 pred_bounding_box, pred_occ, pred_route, pred_vehicle_occupancy, pred_pedestrian_occupancy, pred_wp_1, selected_path, waypoint_label, target_speed_label, checkpoint_label,
-									 semantic_label, bev_semantic_label, bev_topo_label, depth_label, hdmap_label, occ_label, route_label, vehicle_occupancy_label, pedestrian_occupancy_label, center_heatmap_label, wh_label, yaw_class_label,
+									 pred_bounding_box, pred_occ, pred_route, pred_traj, pred_vehicle_occupancy, pred_pedestrian_occupancy, pred_wp_1, selected_path, waypoint_label, target_speed_label, checkpoint_label,
+									 semantic_label, bev_semantic_label, bev_topo_label, depth_label, hdmap_label, occ_label, route_label, traj_label, vehicle_occupancy_label, pedestrian_occupancy_label, center_heatmap_label, wh_label, yaw_class_label,
 									 yaw_res_label, offset_label, velocity_label, brake_target_label, pixel_weight_label,
 									 avg_factor_label):
 		loss = {}
@@ -799,6 +819,13 @@ class LidarCenterNet(nn.Module):
 																 brake_target_label, pixel_weight_label, avg_factor_label)
 
 			loss.update(loss_bbox)
+   
+		if self.config.use_trajectory:
+			# print(pred_traj.shape)
+			# print(f"traj_label.shape: {traj_label.shape}")
+			traj_losses = F.l1_loss(pred_traj, traj_label.unsqueeze(1).repeat(1,6,1,1), reduction='none').mean(dim=[2,3])
+			loss_traj = traj_losses.min(1)[0].mean()
+			loss.update({"loss_trajectory": loss_traj})
 
 		if self.config.use_vehicle_occupancy:
 			self.loss_vehicle = SegmentationLoss(
@@ -836,7 +863,7 @@ class LidarCenterNet(nn.Module):
 		return torch.stack(locs, dim=1)
 
 	def crop_feature(self, features, rel_locs, rel_oris, pixels_per_meter=4, crop_size=96):
-		B, C, H, W = features.size()
+		N, C, H, W = features.size()
 
 		# ERROR proof hack...
 		rel_locs = rel_locs.view(-1,2)
@@ -864,10 +891,13 @@ class LidarCenterNet(nn.Module):
 			torch.stack([k*sin, k*cos,  rel_y], dim=-1)
 		], dim=-2)
 
-		grids = F.affine_grid(theta, torch.Size((B,C,crop_size,crop_size)), align_corners=True)
+		grids = F.affine_grid(theta, torch.Size((N,C,crop_size,crop_size)), align_corners=True).type_as(features)
 
 		cropped_features = F.grid_sample(features, grids, align_corners=True)
-
+  
+		# cropped_features_batch.append(cropped_features)
+		# cropped_features_batch = torch.stack(cropped_features_batch, dim=0)
+		# print(cropped_features_batch.shape)
 		return cropped_features
 
 	def convert_features_to_bb_metric(self, bb_predictions):
