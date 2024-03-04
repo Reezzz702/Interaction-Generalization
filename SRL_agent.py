@@ -288,7 +288,7 @@ class SRLAgent():
     
     lidar_indices = []
     for i in range(self.config.lidar_seq_len):
-      lidar_indices.append(i * self.config.data_save_freq)
+      lidar_indices.append((i + 1) * self.config.data_save_freq - 1)
 
     #Current position of the car
     ego_x = self.state_log[-1][0]
@@ -345,7 +345,7 @@ class SRLAgent():
       lidar_histogram = lidar_histogram.to(self.device, dtype=torch.float32)
       lidar_bev.append(lidar_histogram)
 
-      lidar_bev = torch.cat(lidar_bev, dim=1)
+    lidar_bev = torch.cat(lidar_bev, dim=1)
 
     self.lidar_last = deepcopy(tick_data['lidar'])
 
@@ -369,6 +369,7 @@ class SRLAgent():
       pred_depth, \
       pred_hdmap, \
       pred_route, \
+      pred_traj, \
       pred_vehicle_occupancy, \
       pred_pedestrian_occupancy, \
       pred_bounding_box, pred_occ, attention_weights, \
