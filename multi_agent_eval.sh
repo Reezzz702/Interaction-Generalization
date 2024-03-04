@@ -11,8 +11,8 @@ export EGO_AGNET=${WORKDIR}/SRL_agent
 export AGENT_CONFIG=${WORKDIR}/checkpoints/tfpp_wp
 export DIRECT=0
 
-# killall -9 -r CarlaUE4-Linux 
-# bash ${CARLA_ROOT}/CarlaUE4.sh -quality-level=Low &
+killall -9 -r CarlaUE4-Linux 
+bash ${CARLA_ROOT}/CarlaUE4.sh -quality-level=Low &
 
 sleep 5
 
