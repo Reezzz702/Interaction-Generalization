@@ -1,6 +1,7 @@
 
 import carla
 import numpy as np
+import math
 import weakref
 from carla import ColorConverter as cc
 from copy import deepcopy
@@ -24,27 +25,32 @@ assigned_location_dict = {'E1': (13.700, 2.600),
 						'center': (29.550, 0.85)
 						}
 
+def get_actor_display_name(actor, truncate=250):
+	name = ' '.join(actor.type_id.replace('_', '.').title().split('.')[1:])
+	return (name[:truncate - 1] + u'\u2026') if len(name) > truncate else name
+
+
 # ==============================================================================
 # -- CameraSensor -----------------------------------------------------------------
 # ==============================================================================
 class SensorManager(object):
-	def __init__(self, parent_actor):
+	def __init__(self, parent_actor, sensor_spec_list):
 		self._parent = parent_actor
 		self.id = parent_actor.id
-		self.world = parent_actor.get_world()
-		self.bp_library = self.world.get_blueprint_library()
-		self.Attachment = carla.AttachmentType
+		world = parent_actor.get_world()
+
+		bp_library = world.get_blueprint_library()
+		Attachment = carla.AttachmentType
 
 		self.sensors_dict = {}
 		self.data = {}
 		self.use_lidar = False
 
-	def setup(self, sensor_spec_list):		
 		for sensor_spec in sensor_spec_list:
-			sensor_transform = (carla.Transform(carla.Location(x=sensor_spec['x'], y=sensor_spec['y'], z=sensor_spec['z']), carla.Rotation(roll=sensor_spec['roll'], pitch=sensor_spec['pitch'], yaw=sensor_spec['yaw'])), self.Attachment.Rigid)	
+			sensor_transform = (carla.Transform(carla.Location(x=sensor_spec['x'], y=sensor_spec['y'], z=sensor_spec['z']), carla.Rotation(roll=sensor_spec['roll'], pitch=sensor_spec['pitch'], yaw=sensor_spec['yaw'])), Attachment.Rigid)	
 			sensor_id = sensor_spec['id']
 			if sensor_spec['type'].startswith('sensor.camera'):
-				sensor_rgb_bp = self.bp_library.find(str(sensor_spec['type']))
+				sensor_rgb_bp = bp_library.find(str(sensor_spec['type']))
 				sensor_rgb_bp.set_attribute('image_size_x', str(sensor_spec['width']))
 				sensor_rgb_bp.set_attribute('image_size_y', str(sensor_spec['height']))
 				sensor_rgb_bp.set_attribute('fov', str(sensor_spec['fov']))
@@ -53,12 +59,12 @@ class SensorManager(object):
 				sensor_rgb_bp.set_attribute('chromatic_aberration_intensity', str(0.5))
 				sensor_rgb_bp.set_attribute('chromatic_aberration_offset', str(0))
 				if sensor_id.startswith("rgb_center"):
-					self.sensor_instance_rgb = self.world.spawn_actor(
+					self.sensor_instance_rgb = world.spawn_actor(
 					sensor_rgb_bp,
 					sensor_transform[0],
 				)
 				else:
-					self.sensor_instance_rgb = self.world.spawn_actor(
+					self.sensor_instance_rgb = world.spawn_actor(
 					sensor_rgb_bp,
 					sensor_transform[0],
 					attach_to=self._parent,
@@ -70,7 +76,7 @@ class SensorManager(object):
     
 			if sensor_spec['type'].startswith('sensor.lidar'):
 				self.use_lidar = True
-				sensor_lidar_bp = self.bp_library.find(str(sensor_spec['type']))
+				sensor_lidar_bp = bp_library.find(str(sensor_spec['type']))
 				sensor_lidar_bp.set_attribute('range', str(85))
 				sensor_lidar_bp.set_attribute('rotation_frequency', str(10))
 				sensor_lidar_bp.set_attribute('channels', str(64))
@@ -82,7 +88,7 @@ class SensorManager(object):
 				sensor_lidar_bp.set_attribute('dropoff_intensity_limit', str(0.8))
 				sensor_lidar_bp.set_attribute('dropoff_zero_intensity', str(0.4))
 
-				self.sensor_instance_lidar = self.world.spawn_actor(
+				self.sensor_instance_lidar = world.spawn_actor(
 					sensor_lidar_bp,
 					sensor_transform[0],
 					attach_to=self._parent,
@@ -113,7 +119,7 @@ class SensorManager(object):
 	def get_data(self, frame, sensor_id=None):
 		while True:
 			if not self.data[sensor_id]:
-				print(f'wait for {self.id} {sensor_id} sensor at frame {frame}')
+				# print(f'wait for {self.id} {sensor_id} sensor at frame {frame}')
 				continue
 			if self.data[sensor_id].frame == frame:
 				break
@@ -148,7 +154,8 @@ class SensorManager(object):
 class CollisionSensor(object):
 	def __init__(self, parent_actor):
 		self.sensor = None
-		self.history = []
+		self.frame_history = []
+		self.id_history = []
 		self._parent = parent_actor
 		# self.hud = hud
 		self.other_actor_id = 0  # init as 0 for static object
@@ -181,8 +188,13 @@ class CollisionSensor(object):
 		# intensity = math.sqrt(impulse.x**2 + impulse.y**2 + impulse.z**2)
 		# dict: {data1, data2}
 		# data = frame: {timestamp, other_actor's id, intensity}
-		self.history.append(
-			{'frame': event.frame, 'actor_id': event.other_actor.id})
+		if event.frame not in self.frame_history:
+			self.frame_history.append(event.frame)
+			self.id_history.append([event.other_actor.id])
+		else:
+			if event.other_actor.id not in self.id_history[-1]:
+				self.id_history[-1].append(event.other_actor.id)
+   
 		# if len(self.history) > 4000:
 		#     self.history.pop(0)
 		self.collision = True
@@ -195,3 +207,66 @@ class CollisionSensor(object):
 			self.true_collision = True
 		if event.other_actor.id != self.other_actor_id:
 			self.wrong_collision = True
+
+
+# ==============================================================================
+# -- GnssSensor ----------------------------------------------------------------
+# ==============================================================================
+class GnssSensor(object):
+	def __init__(self, parent_actor):
+		self.sensor = None
+		self._parent = parent_actor
+		self.lat = 0.0
+		self.lon = 0.0
+		world = self._parent.get_world()
+		bp = world.get_blueprint_library().find('sensor.other.gnss')
+		self.sensor = world.spawn_actor(bp, carla.Transform(carla.Location(x=1.0, z=2.8)))
+		# We need to pass the lambda a weak reference to self to avoid circular
+		# reference.
+		weak_self = weakref.ref(self)
+		self.sensor.listen(lambda event: GnssSensor._on_gnss_event(weak_self, event))
+
+	@staticmethod
+	def _on_gnss_event(weak_self, event):
+		self = weak_self()
+		if not self:
+			return
+		self.lat = event.latitude
+		self.lon = event.longitude
+
+
+# ==============================================================================
+# -- IMUSensor -----------------------------------------------------------------
+# ==============================================================================
+class IMUSensor(object):
+	def __init__(self, parent_actor):
+		self.sensor = None
+		self._parent = parent_actor
+		self.accelerometer = (0.0, 0.0, 0.0)
+		self.gyroscope = (0.0, 0.0, 0.0)
+		self.compass = 0.0
+		world = self._parent.get_world()
+		bp = world.get_blueprint_library().find('sensor.other.imu')
+		self.sensor = world.spawn_actor(
+			bp, carla.Transform(), attach_to=self._parent)
+		# We need to pass the lambda a weak reference to self to avoid circular
+		# reference.
+		weak_self = weakref.ref(self)
+		self.sensor.listen(
+			lambda sensor_data: IMUSensor._IMU_callback(weak_self, sensor_data))
+
+	@staticmethod
+	def _IMU_callback(weak_self, sensor_data):
+		self = weak_self()
+		if not self:
+			return
+		limits = (-99.9, 99.9)
+		self.accelerometer = (
+			max(limits[0], min(limits[1], sensor_data.accelerometer.x)),
+			max(limits[0], min(limits[1], sensor_data.accelerometer.y)),
+			max(limits[0], min(limits[1], sensor_data.accelerometer.z)))
+		self.gyroscope = (
+			max(limits[0], min(limits[1], math.degrees(sensor_data.gyroscope.x))),
+			max(limits[0], min(limits[1], math.degrees(sensor_data.gyroscope.y))),
+			max(limits[0], min(limits[1], math.degrees(sensor_data.gyroscope.z))))
+		self.compass = math.degrees(sensor_data.compass)

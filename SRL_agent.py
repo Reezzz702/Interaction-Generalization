@@ -12,19 +12,14 @@ import math
 
 from team_code.model import LidarCenterNet
 from team_code.config import GlobalConfig
-from team_code.nav_planner import RoutePlanner, extrapolate_waypoint_route
 from team_code.data import CARLA_Data
 
 from filterpy.kalman import MerweScaledSigmaPoints
 from filterpy.kalman import UnscentedKalmanFilter as UKF
 
-# from scenario_logger import ScenarioLogger
 import team_code.transfuser_utils as t_u
 
-import pathlib
 import pickle
-import ujson  # Like json but faster
-import gzip
 from copy import deepcopy
 
 # Configure pytorch for maximum performance
@@ -142,7 +137,7 @@ class SRLAgent():
     self.lidar_buffer = deque(maxlen=self.config.lidar_seq_len * self.config.data_save_freq)
     self.lidar_last = None
     self.initialized = False
-    control = carla.VehicleControl(steer=0.0, throttle=0.0, brake=1.0)
+    control = carla.VehicleControl(steer=0.0, throttle=0.3, brake=0.0)
     self.control = control
     
     self.data = CARLA_Data(root=[], config=self.config, shared_dict=None)
@@ -207,10 +202,10 @@ class SRLAgent():
   
   @torch.inference_mode()  # Turns off gradient computation
   def tick(self, image, lidar, input_data):    
-    location = input_data['agent'].get_location()
+    location = self.actor.get_location()
     pos = np.array([location.x, location.y])
 
-    compass = t_u.preprocess_compass(input_data['imu'].compass)
+    compass = np.deg2rad(self.actor.get_transform().rotation.yaw)
     speed = self._get_forward_speed()
     
     rgb = []
@@ -283,16 +278,17 @@ class SRLAgent():
     
     if not self.initialized:
       self.initialized = True
-      control = carla.VehicleControl(steer=0.0, throttle=0.0, brake=1.0)
+      control = carla.VehicleControl(steer=0.0, throttle=0.3, brake=0.0)
       self.control = control
       if "lidar" in tick_data:
         self.lidar_last = deepcopy(tick_data['lidar'])
       input_data['control'] = control
+      return
 
     
     lidar_indices = []
     for i in range(self.config.lidar_seq_len):
-      lidar_indices.append(i * self.config.data_save_freq)
+      lidar_indices.append((i + 1) * self.config.data_save_freq - 1)
 
     #Current position of the car
     ego_x = self.state_log[-1][0]
@@ -313,17 +309,19 @@ class SRLAgent():
       # We wait until we have sufficient LiDARs
     if len(self.lidar_buffer) < (self.config.lidar_seq_len * self.config.data_save_freq):
       self.lidar_last = deepcopy(tick_data['lidar'])
-      tmp_control = carla.VehicleControl(0.0, 0.0, 1.0)
+      tmp_control = carla.VehicleControl(0.0, 0.3, 0.0)
       self.control = tmp_control
 
       input_data['control'] = tmp_control
+      return
 
     # Possible action repeat configuration
     if self.step % self.config.action_repeat == 1:
       self.lidar_last = deepcopy(tick_data['lidar'])
 
       input_data['control'] = self.control
-
+      return
+    
     # Voxelize LiDAR and stack temporal frames
     lidar_bev = []
     # prepare LiDAR input
@@ -347,7 +345,7 @@ class SRLAgent():
       lidar_histogram = lidar_histogram.to(self.device, dtype=torch.float32)
       lidar_bev.append(lidar_histogram)
 
-      lidar_bev = torch.cat(lidar_bev, dim=1)
+    lidar_bev = torch.cat(lidar_bev, dim=1)
 
     self.lidar_last = deepcopy(tick_data['lidar'])
 
@@ -367,12 +365,14 @@ class SRLAgent():
       pred_checkpoint,\
       pred_semantic, \
       pred_bev_semantic, \
+      pred_bev_topo, \
       pred_depth, \
       pred_hdmap, \
       pred_route, \
+      pred_traj, \
       pred_vehicle_occupancy, \
       pred_pedestrian_occupancy, \
-      pred_bounding_box, _, \
+      pred_bounding_box, pred_occ, attention_weights, \
       pred_wp_1, \
       selected_path = self.nets[i].forward(
         rgb=tick_data['rgb'],
@@ -474,17 +474,12 @@ class SRLAgent():
         brake = True
         self.force_move = self.config.creep_duration
 
-    # if self.stop_sign_controller:
-    #   if stop_for_stop_sign:
-    #     throttle = 0.0
-    #     brake = True
-
     control = carla.VehicleControl(steer=float(steer), throttle=float(throttle), brake=float(brake))
 
     # CARLA will not let the car drive in the initial frames.
     # We set the action to brake so that the filter does not get confused.
     if self.step < self.config.inital_frames_delay:
-      self.control = carla.VehicleControl(0.0, 0.0, 1.0)
+      self.control = carla.VehicleControl(0.0, 0.3, 0.0)
     else:
       self.control = control
 

@@ -8,7 +8,7 @@ import math
 import numpy as np
 import carla
 
-from collections import deque, defaultdict
+from collections import defaultdict
 from team_code.config import GlobalConfig
 import team_code.transfuser_utils as t_u
 from team_code.nav_planner import RoutePlanner, PIDController
@@ -92,7 +92,7 @@ class AutoPilot():
     del self._world
 
   def tick(self, input_data):
-    compass = t_u.preprocess_compass(input_data['imu'].compass)
+    compass = np.deg2rad(self.actor.get_transform().rotation.yaw)
     input_data['compass'] = compass
     input_data['speed'] = self._get_forward_speed()
 
@@ -100,10 +100,8 @@ class AutoPilot():
   def run_step(self, route_list, input_data):
     location = input_data['agent'].get_location()
     pos = np.array([location.x, location.y])
-
-    near_command = route_list[1][1] if len(route_list) > 1 else route_list[0][1]
     
-    brake = self._get_brake(near_command)
+    brake = self._get_brake()
 
     ego_vehicle_waypoint = self._world.get_map().get_waypoint(input_data['agent'].get_location())
     self.junction = ego_vehicle_waypoint.is_junction
@@ -240,8 +238,6 @@ class AutoPilot():
     return throttle
     
   def _get_brake(self, near_command=None):
-    lane_change = near_command.value in (5, 6)
-
     actors = self._world.get_actors()
     ego_speed = self._get_forward_speed()
 
@@ -422,7 +418,7 @@ class AutoPilot():
         back_intersect = (self.check_obb_intersection(bounding_box_back, traffic_participant[i_stuck]) is True)
         front_intersect = (self.check_obb_intersection(bounding_box, traffic_participant[i_stuck]))
         # During lane changes we consider collisions with the back side
-        if lane_change and back_intersect:
+        if back_intersect:
           color2 = carla.Color(255, 0, 0, 0)
           if self.junction or (i <= number_of_future_frames_no_junction):
             self.vehicle_hazard = True

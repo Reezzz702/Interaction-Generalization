@@ -4,7 +4,6 @@ from torch import nn
 from torchvision.models.video import r2plus1d_18
 import transfuser_utils as t_u
 
-
 class VideoResNet(nn.Module):
   """ R2+1D Video ResNet 18 based on torchvision implementation.
       We adapt the code here so that it matches the structure of timm models and we can interchange them more easily.
@@ -39,7 +38,7 @@ class VideoResNet(nn.Module):
     for idx, layer in enumerate(self.model.named_children()):
       self.return_layers[layer[0]] = idx
       setattr(self, layer[0], layer[1])
-
+    
   # Return the iterator we will use to loop through the network.
   def items(self):
     return self.model.named_children()

@@ -252,3 +252,8 @@ def angle2class(angle, num_dir_bins):
   angle_cls = shifted_angle // angle_per_class
   angle_res = shifted_angle - (angle_cls * angle_per_class + angle_per_class / 2)
   return int(angle_cls), angle_res
+
+def class2angle(angle_class, angle_res, num_dir_bins):
+  angle_per_class = 2 * np.pi / float(num_dir_bins)
+  angle = (angle_res + angle_class * angle_per_class) % (2 * np.pi)
+  return angle

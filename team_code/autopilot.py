@@ -130,6 +130,28 @@ class AutoPilot(autonomous_agent_local.AutonomousAgent):
 
     self._vehicle_lights = carla.VehicleLightState.Position | carla.VehicleLightState.LowBeam
 
+    if os.environ.get('SAVE_PATH', None) is not None:
+      now = datetime.datetime.now()
+      string = pathlib.Path(os.environ['ROUTES']).stem + '_'
+      string += f'route{self.route_index}_'
+      string += '_'.join(map(lambda x: f'{x:02}', (now.month, now.day, now.hour, now.minute, now.second)))
+
+      print(string)
+
+      self.save_path = pathlib.Path(os.environ['SAVE_PATH']) / string
+      self.save_path.mkdir(parents=True, exist_ok=False)
+
+      if self.datagen:
+        (self.save_path / 'measurements').mkdir()
+
+      self.lon_logger = ScenarioLogger(
+          save_path=self.save_path,
+          route_index=route_index,
+          logging_freq=self.config.logging_freq,
+          log_only=True,
+          route_only=False,  # with vehicles
+          roi=self.config.logger_region_of_interest,
+      )
 
   def _init(self, hd_map):
     # Near node
@@ -217,7 +239,7 @@ class AutoPilot(autonomous_agent_local.AutonomousAgent):
 
     return result
 
-  def run_step(self, input_data, timestamp, sensor=None, plant=False):  # pylint: disable=locally-disabled, unused-argument
+  def run_step(self, input_data, timestamp, sensors=None, plant=False):  # pylint: disable=locally-disabled, unused-argument
     self.step += 1
     if not self.initialized:
       if 'hd_map' in input_data.keys():
@@ -229,7 +251,7 @@ class AutoPilot(autonomous_agent_local.AutonomousAgent):
         control.brake = 1.0
         return control
 
-    control, data = self._get_control(input_data)
+    control, data = self._get_control(input_data, plant)
 
     if plant:
       return data

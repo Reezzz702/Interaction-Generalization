@@ -1,5 +1,7 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+*/__pycache__/
+
 *.py[cod]
 *$py.class
 
@@ -155,8 +157,14 @@ cython_debug/
 
 # carla env
 /carla
-
+/carla_14
 
 test.py
 /ckpt
 /checkpoints
+/results.json
+/results
+test.json
+run_eval_*.sh
+
+carla_gym/utils/__pycache__
