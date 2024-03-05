@@ -166,3 +166,5 @@ test.py
 /results
 test.json
 run_eval_*.sh
+
+carla_gym/utils/__pycache__
