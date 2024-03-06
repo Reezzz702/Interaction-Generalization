@@ -37,7 +37,7 @@ def parse_result(args):
       sensor_record['Collision Rate'] = sensor_record.get('Collision Rate', 0) + int(record['Collisions'])
       sensor_record['Avg Completion Time'] = sensor_record.get('Avg Completion Time', 0) + float(record['Completion Time'])
       
-  total = len(records)
+  total = len(records)/7
   auto_record['Success Rate'] = round(100*auto_record['Success Rate']/(total*2), 2)
   auto_record['Collision Rate'] = round(auto_record['Collision Rate']/(total*2), 2)
   auto_record['Avg Completion Time'] = round(auto_record['Avg Completion Time']/(total*2), 2)
