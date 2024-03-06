@@ -37,21 +37,22 @@ def parse_result(args):
       sensor_record['Collision Rate'] = sensor_record.get('Collision Rate', 0) + int(record['Collisions'])
       sensor_record['Avg Completion Time'] = sensor_record.get('Avg Completion Time', 0) + float(record['Completion Time'])
       
-  auto_record['Success Rate'] = round(100*auto_record['Success Rate']/112, 2)
-  auto_record['Collision Rate'] = round(auto_record['Collision Rate']/112, 2)
-  auto_record['Avg Completion Time'] = round(auto_record['Avg Completion Time']/112, 2)
+  total = len(records)
+  auto_record['Success Rate'] = round(100*auto_record['Success Rate']/(total*2), 2)
+  auto_record['Collision Rate'] = round(auto_record['Collision Rate']/(total*2), 2)
+  auto_record['Avg Completion Time'] = round(auto_record['Avg Completion Time']/(total*2), 2)
 
-  plant_record['Success Rate'] = round(100*plant_record['Success Rate']/112, 2)
-  plant_record['Collision Rate'] = round(plant_record['Collision Rate']/112, 2)
-  plant_record['Avg Completion Time'] = round(plant_record['Avg Completion Time']/112, 2)
+  plant_record['Success Rate'] = round(100*plant_record['Success Rate']/(total*2), 2)
+  plant_record['Collision Rate'] = round(plant_record['Collision Rate']/(total*2), 2)
+  plant_record['Avg Completion Time'] = round(plant_record['Avg Completion Time']/(total*2), 2)
 
-  roach_record['Success Rate'] = round(100*roach_record['Success Rate']/112, 2)
-  roach_record['Collision Rate'] = round(roach_record['Collision Rate']/112, 2)
-  roach_record['Avg Completion Time'] = round(roach_record['Avg Completion Time']/112, 2)
+  roach_record['Success Rate'] = round(100*roach_record['Success Rate']/(total*2), 2)
+  roach_record['Collision Rate'] = round(roach_record['Collision Rate']/(total*2), 2)
+  roach_record['Avg Completion Time'] = round(roach_record['Avg Completion Time']/(total*2), 2)
 
-  sensor_record['Success Rate'] = round(100*sensor_record['Success Rate']/56, 2)
-  sensor_record['Collision Rate'] = round(sensor_record['Collision Rate']/56, 2)
-  sensor_record['Avg Completion Time'] = round(sensor_record['Avg Completion Time']/56, 2)
+  sensor_record['Success Rate'] = round(100*sensor_record['Success Rate']/total, 2)
+  sensor_record['Collision Rate'] = round(sensor_record['Collision Rate']/total, 2)
+  sensor_record['Avg Completion Time'] = round(sensor_record['Avg Completion Time']/total, 2)
   
   checkpoints['auto record'] = auto_record
   checkpoints['plant record'] = plant_record
