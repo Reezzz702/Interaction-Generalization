@@ -3,7 +3,7 @@
 ## Install the Environment
 
 ``` bash
-conda create env -f environment.ml
+conda create env -f environment.yml
 ```
 
 ## Run Evaluation
