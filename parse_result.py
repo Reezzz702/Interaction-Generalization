@@ -14,6 +14,7 @@ def parse_result(args):
   plant_record = {}
   roach_record = {}
   sensor_record = {}
+  new_global = {}
   for record in records:
     id = int(record['Index'])%7
     
@@ -36,6 +37,12 @@ def parse_result(args):
       sensor_record['Success Rate'] = sensor_record.get('Success Rate', 0) + int(record['Success'])
       sensor_record['Collision Rate'] = sensor_record.get('Collision Rate', 0) + int(record['Collisions'])
       sensor_record['Avg Completion Time'] = sensor_record.get('Avg Completion Time', 0) + float(record['Completion Time'])
+    
+    if id in [0,2,4,6,7]:
+      new_global['Success Rate'] = new_global.get('Success Rate', 0) + int(record['Success'])
+      new_global['Collision Rate'] = new_global.get('Collision Rate', 0) + int(record['Collisions'])
+      new_global['Avg Completion Time'] = new_global.get('Avg Completion Time', 0) + float(record['Completion Time'])
+
       
   total = len(records)/7
   auto_record['Success Rate'] = round(100*auto_record['Success Rate']/(total*2), 2)
@@ -54,10 +61,16 @@ def parse_result(args):
   sensor_record['Collision Rate'] = round(sensor_record['Collision Rate']/total, 2)
   sensor_record['Avg Completion Time'] = round(sensor_record['Avg Completion Time']/total, 2)
   
+  new_global['Success Rate'] = round(100*new_global['Success Rate']/(total*4), 2)
+  new_global['Collision Rate'] = round(new_global['Collision Rate']/(total*4), 2)
+  new_global['Avg Completion Time'] = round(new_global['Avg Completion Time']/(total*4), 2)
+  
   checkpoints['auto record'] = auto_record
   checkpoints['plant record'] = plant_record
   checkpoints['roach record'] = roach_record
   checkpoints['sensor record'] = sensor_record
+  checkpoints['new_global'] = new_global
+  
   
   with open(args.checkpoints, 'w') as fd:
 			json.dump(checkpoints, fd, indent=2, sort_keys=True)
