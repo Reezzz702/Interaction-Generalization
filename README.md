@@ -1,4 +1,4 @@
-# MAIN Benchmark
+# Interaction Benchmark
 
 ## Install the Environment
 
