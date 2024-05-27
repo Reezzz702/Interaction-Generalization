@@ -11,12 +11,12 @@ export PYTHONPATH=$PYTHONPATH:${WORK_DIR}/team_code
 
 export EVAL_CONFIG=${WORK_DIR}/eval_config/sensor_eval_mid.json
 export SENSOR_AGNET=${WORK_DIR}/SRL_agent
-export AGENT_CONFIG=${WORK_DIR}/checkpoints/BB_BT_wp
+export AGENT_CONFIG=${WORK_DIR}/checkpoints/BB_BT_R_O_wp
 export DIRECT=0
 export RESUME=1
 export REND=0
-export CHECKPOINT_ENDPOINT=${WORK_DIR}/results/mid/BB_BT/interaction.json
-export SAVE_PATH=${WORK_DIR}/results/mid/BB_BT
+export CHECKPOINT_ENDPOINT=${WORK_DIR}/results/mid/BB_BT_R_O/interaction.json
+export SAVE_PATH=${WORK_DIR}/results/mid/BB_BT_R_O
 
 
 SERVICE="CarlaUE4"
